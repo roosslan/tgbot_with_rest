@@ -1,0 +1,19 @@
+services:
+  chanserv:
+    env_file: 
+      - ./run.env
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      CHANSERV_CONFIG: ${CHANSERV_CONFIG}
+      CHANSERV_LOGDIR: ${CHANSERV_LOGDIR}
+    volumes:
+      - /home/rasa:/home/rasa
+      - /home/rasa/logs:/root/logs
+    ports:
+     - "65053:53"
+     - "65179:179"
+     - "65080:8080"
+    container_name: chanserv
+

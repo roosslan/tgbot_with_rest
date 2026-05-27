@@ -1,0 +1,22 @@
+[submodule "lib/cJSON"]
+	path = lib/cJSON
+	url = https://github.com/DaveGamble/cJSON.git
+	branch = master
+[submodule "lib/curl"]
+	path = lib/curl
+	url = https://github.com/curl/curl.git
+[submodule "lib/icu"]
+	path = lib/icu
+	url = https://github.com/unicode-org/icu.git
+[submodule "lib/openssl"]
+	path = lib/openssl
+	url = https://github.com/openssl/openssl.git
+[submodule "lib/tgbot"]
+	path = lib/tgbot
+	url = https://github.com/reo7sp/tgbot-cpp
+[submodule "lib/zlib"]
+	path = lib/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "lib/cpprestsdk"]
+	path = lib/cpprestsdk
+	url = https://github.com/microsoft/cpprestsdk
