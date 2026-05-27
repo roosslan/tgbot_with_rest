@@ -40,4 +40,4 @@ Minimal Qt configuration:
 configure -sql-odbc -sql-psql -skip qtwebengine -skip qtquick3d -skip qtmultimedia -skip qtgraphs -skip qtquick3dphysics -skip qtquickeffectmaker -skip qtspeech -skip qtdoc -skip qtquick -skip qtdeclarative -skip qtquickcontrols -skip qtquickcontrols2 -skip qtlocation -skip qtlottie -skip qtmqtt -skip qtopcua -skip qtquicktimeline -skip qtvirtualkeyboard -skip qtwebview -skip qttools -skip qttranslations -skip qt3d -skip qtcharts -skip qtcoap -skip qtdatavis3d -skip qtgrpc -skip qtremoteobjects -skip qtscxml -skip qtsensors -skip qtwayland -skip qtwebchannel
 
 \
-![x86](https://github.com/roosslan/jira_telegrambot/blob/trunk/chanserv.gif?raw=true)
+![x86](https://github.com/roosslan/tgbot_with_rest/blob/trunk/chanserv.gif?raw=true)
