@@ -45,6 +45,14 @@ May 2026    v.21.1
 https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server \
 В Docker-образе они ставятся автоматически (docker-img/Dockerfile).
 
+### Тесты и CI
+
+Модульные тесты (QtTest) находятся в `tests/` и собираются вместе с ботом (опция `CHANSERV_BUILD_TESTS`, по умолчанию включена). Для запуска после сборки:
+
+    ctest --test-dir build --output-on-failure
+
+GitHub Actions (`.github/workflows/ci.yml`) на каждый PR и push в `trunk` собирает chanserv и listchecker и запускает тесты на Ubuntu 24.04 с Qt 6.10.1. Те же шаги можно выполнить локально в контейнере ubuntu:24.04 скриптами `ci/install-deps.sh` и `ci/build.sh`.
+
 ### Конфигурация
 
 - `docker-img/chanserv.toml` — подключение к PostgreSQL, адрес Jira (`[jira] browse_url`), секрет вебхуков (`[jira] webhook_secret`), время жизни сессий (`session_ttl_hours`). Путь к файлу задаётся переменной окружения `CHANSERV_CONFIG`.

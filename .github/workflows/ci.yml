@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [trunk]
+  pull_request:
+
+jobs:
+  build:
+    name: Сборка и тесты (Ubuntu 24.04, Qt 6.10.1)
+    runs-on: ubuntu-24.04
+    env:
+      QT_VERSION: 6.10.1
+      QT_ROOT: ${{ github.workspace }}/../Qt
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Кэш Qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.QT_ROOT }}
+          key: qt-${{ env.QT_VERSION }}-linux_gcc_64-httpserver-websockets
+
+      - name: Зависимости
+        run: bash ci/install-deps.sh
+
+      - name: Сборка и тесты
+        run: bash ci/build.sh

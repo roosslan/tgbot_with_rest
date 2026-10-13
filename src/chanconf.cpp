@@ -48,7 +48,12 @@ void ChanConf::IInitializeConfig()
 
 std::string ChanConf::conf_value(std::string_view section, std::string_view key, const std::string& default_value) const
 {
-    const auto node = chanserv_toml_[section][key];
+    return toml_value_as_string(chanserv_toml_, section, key, default_value);
+}
+
+std::string toml_value_as_string(const toml::table& tbl, std::string_view section, std::string_view key, const std::string& default_value)
+{
+    const auto node = tbl[section][key];
     if (const auto str = node.value<std::string>())
         return *str;
     if (const auto num = node.value<int64_t>())

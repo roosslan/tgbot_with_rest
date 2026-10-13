@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <signal.h>
 #include <QCoreApplication>
-#include "src/qtests.h"
 #include "support.h"
 #include "chanserv.h"
 
@@ -15,23 +14,10 @@
 #include <QDebug>
 #include <QNetworkInterface>
 #include <QNetworkProxy>
-#include <QUrlQuery>
 #include <atomic>
 #include <cmath>
 #include <memory>
 #include <thread>
-
-/* Сравнение токена вебхука за время, не зависящее от совпавшего префикса */
-static bool secure_equals(const QByteArray &received, const std::string &expected)
-{
-    if (received.size() != static_cast<qsizetype>(expected.size()))
-        return false;
-
-    unsigned char diff = 0;
-    for (qsizetype i = 0; i < received.size(); ++i)
-        diff |= static_cast<unsigned char>(received[i]) ^ static_cast<unsigned char>(expected[i]);
-    return diff == 0;
-}
 
 
 int main(int argc, char *argv[])
@@ -118,8 +104,7 @@ int main(int argc, char *argv[])
 
             server.setMissingHandler(
                 &server, [&jira_bot, webhook_secret](const QHttpServerRequest &request, QHttpServerResponder &responder) {
-                    const QByteArray token = QUrlQuery(request.url()).queryItemValue("token").toUtf8();
-                    if (!secure_equals(token, webhook_secret)) {
+                    if (!webhook_token_valid(request.url(), webhook_secret)) {
                         c_out << "Вебхук Jira отклонён (неверный token) от " << request.remoteAddress().toString().toStdString() << std::endl;
                         responder.sendResponse(QHttpServerResponse(QHttpServerResponse::StatusCode::Forbidden));
                         return;
