@@ -1,0 +1,8 @@
+# Секреты
+src/sensitive_data.h
+
+# Сборка
+bin/
+build/
+build-*/
+CMakeLists.txt.user*

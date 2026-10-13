@@ -15,7 +15,23 @@
 #include <QDebug>
 #include <QNetworkInterface>
 #include <QNetworkProxy>
+#include <QUrlQuery>
+#include <atomic>
 #include <cmath>
+#include <memory>
+#include <thread>
+
+/* Сравнение токена вебхука за время, не зависящее от совпавшего префикса */
+static bool secure_equals(const QByteArray &received, const std::string &expected)
+{
+    if (received.size() != static_cast<qsizetype>(expected.size()))
+        return false;
+
+    unsigned char diff = 0;
+    for (qsizetype i = 0; i < received.size(); ++i)
+        diff |= static_cast<unsigned char>(received[i]) ^ static_cast<unsigned char>(expected[i]);
+    return diff == 0;
+}
 
 
 int main(int argc, char *argv[])
@@ -31,10 +47,21 @@ int main(int argc, char *argv[])
     /* Handler, чтобы qDebug() писал свой вывод в файл */
     qInstallMessageHandler(bg_message_handler);
 
-    chanserv_bot jira_bot;
+    /* Ошибки чтения конфига и подключения к БД приходят исключениями из конструктора и IInitializeDB() */
+    std::unique_ptr<chanserv_bot> bot_holder;
+    try
+    {
+        bot_holder = std::make_unique<chanserv_bot>();
 
-    // Открываем БД микрософт SQL Server
-    jira_bot.IInitializeDB();
+        // Открываем БД микрософт SQL Server
+        bot_holder->IInitializeDB();
+    }
+    catch (const std::exception &e)
+    {
+        c_out << "Ошибка инициализации бота: " << e.what() << std::endl;
+        return 1;
+    }
+    chanserv_bot& jira_bot = *bot_holder;
 
     jira_bot.initialize_tracking_apis();
 
@@ -70,17 +97,34 @@ int main(int argc, char *argv[])
                 c_out << address.toString().toStdString() << std::endl;
         }
 
-        active_object jira_listener([&jira_bot]{
+        /* Сервер вебхуков создаётся один раз и работает до завершения бота.
+         * Jira должна вызывать адрес вида http://host:port/UPD/${issue.key}?token=<jira.webhook_secret> */
+        const std::string webhook_secret = jira_bot.sett["jira_webhook_secret"];
+        std::atomic<QEventLoop*> jira_listener_loop{nullptr};
+
+        std::thread jira_listener([&jira_bot, &jira_listener_loop, webhook_secret]{
+            if (webhook_secret.empty()) {
+                c_out << "jira.webhook_secret в chanserv.toml не задан, вебхуки Jira отключены" << std::endl;
+                return;
+            }
+
             QEventLoop loop;
 
             QHttpServer server;
             server.route("/", [](const QHttpServerRequest &request) {
-                c_out << request.url().toString().toStdString() << std::endl;
+                c_out << request.url().path().toStdString() << std::endl;
                 return "";
             });
 
             server.setMissingHandler(
-                &server, [&jira_bot](const QHttpServerRequest &request, QHttpServerResponder &responder) {
+                &server, [&jira_bot, webhook_secret](const QHttpServerRequest &request, QHttpServerResponder &responder) {
+                    const QByteArray token = QUrlQuery(request.url()).queryItemValue("token").toUtf8();
+                    if (!secure_equals(token, webhook_secret)) {
+                        c_out << "Вебхук Jira отклонён (неверный token) от " << request.remoteAddress().toString().toStdString() << std::endl;
+                        responder.sendResponse(QHttpServerResponse(QHttpServerResponse::StatusCode::Forbidden));
+                        return;
+                    }
+
                     c_out << "Received a trigger from Jira: " << request.url().path().toStdString() << ", passed to JiraWebhooksHandler()" << std::endl;
 
                     /* При загрузке изображений во вновь созданный тикет вызывается вебхук UPD/
@@ -89,7 +133,7 @@ int main(int argc, char *argv[])
                     sleep(2);
 
                     jira_bot.jira_webhooks_handler(request.url().path().toStdString());
-                    return QHttpServerResponse("text/plain", QByteArray("Pass to handler"), QHttpServerResponse::StatusCode::NotFound);
+                    responder.sendResponse(QHttpServerResponse("text/plain", QByteArray("Pass to handler"), QHttpServerResponse::StatusCode::Ok));
                 });
 
             QTcpServer tcpServer;
@@ -103,8 +147,9 @@ int main(int argc, char *argv[])
                 return;
             }
 
-            QTimer::singleShot(144000, &loop, SLOT(quit()));
+            jira_listener_loop = &loop;
             loop.exec();
+            jira_listener_loop = nullptr;
         });
 
         try {
@@ -114,9 +159,12 @@ int main(int argc, char *argv[])
             c_out << "BotStart's error: " + std::string(e.what()) << std::endl;
         }
 
-        send_msg_to_support(jira_bot.m_tg_bot.getApi(), jira_bot.sett["support_TgID"], "⚠️ Бот работу завершил.", *jira_bot.uD, nullptr);
+        send_msg_to_support(jira_bot.m_tg_bot.getApi(), jira_bot.sett["support_TgID"], "⚠️ Бот работу завершил.");
 
-        jira_listener.terminate();
+        /* Останавливаем цикл событий сервера вебхуков из его же потока */
+        if (QEventLoop* loop = jira_listener_loop.load())
+            QMetaObject::invokeMethod(loop, "quit", Qt::QueuedConnection);
+        jira_listener.join();
         monitor_mem_size_worker.terminate();
         raise(SIGINT);
 

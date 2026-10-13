@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <map>
 #include <string>
 #include <vector>
@@ -127,4 +128,6 @@ struct user_dispatcher
     std::vector<most_recent_msgs> recent_msgs;
     int clicked_msg_id;
     std::vector<int> recent_msg_ids;
+    /* Время последнего обращения юзера к боту, по нему удаляются неактивные сессии */
+    std::chrono::steady_clock::time_point last_activity = std::chrono::steady_clock::now();
 };

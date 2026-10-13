@@ -12,7 +12,7 @@ services:
       - /volume3/rasa/chanserv:/root/
       - /volume3/rasa/chanserv/logs:/root/logs
     ports:
-     - "65053:53"
-     - "65179:179"
+     - "65053:53000"
+     - "65179:17900"
      - "65080:8080"
     container_name: chanserv

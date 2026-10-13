@@ -1,0 +1,45 @@
+/*
+ * Шаблон src/sensitive_data.h.
+ * Для использования файл необходимо скопировать в src/sensitive_data.h и заполнить своими значениями.
+ * src/sensitive_data.h указан в .gitignore и в репозиторий не попадает.
+ *
+ * Рабочие настройки бота хранятся не здесь:
+ *  - токены Telegram, Trello, Jira, пути к скриптам - в таблице settings PostgreSQL;
+ *  - параметры подключения к БД, адрес Jira и секрет вебхуков - в chanserv.toml.
+ * Этот файл предназначен для локальной отладки и тестов, где БД недоступна.
+ */
+#pragma once
+
+#include <string_view>
+
+namespace sensitive
+{
+    /* Токен бота от @BotFather */
+    inline constexpr std::string_view tg_bot_token        = "1234567890:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+    /* Telegram ID разработчика (support_TgID) */
+    inline constexpr long             support_tg_id       = 0;
+
+    /* Trello: https://trello.com/power-ups/admin */
+    inline constexpr std::string_view trello_key          = "";
+    inline constexpr std::string_view trello_token        = "";
+
+    /* Jira: персональный токен доступа (PAT) */
+    inline constexpr std::string_view jira_base_url       = "https://jira.example.ru:8443/";
+    inline constexpr std::string_view jira_token          = "";
+    inline constexpr std::string_view jira_webhook_secret = "";
+
+    /* PostgreSQL */
+    inline constexpr std::string_view pg_host             = "127.0.0.1";
+    inline constexpr int              pg_port             = 5432;
+    inline constexpr std::string_view pg_db               = "chanserv";
+    inline constexpr std::string_view pg_user             = "chanserv";
+    inline constexpr std::string_view pg_password         = "";
+
+    /* Корпоративный SMTP для sendmail.ps1 */
+    inline constexpr std::string_view smtp_server         = "smtp.example.ru";
+    inline constexpr int              smtp_port           = 587;
+    inline constexpr std::string_view smtp_from           = "chanserv@example.ru";
+    inline constexpr std::string_view smtp_user           = "";
+    inline constexpr std::string_view smtp_password       = "";
+}

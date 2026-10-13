@@ -1,5 +1,7 @@
 #include "chanconf.h"
 
+#include <stdexcept>
+
 ChanConf::ChanConf()
 {
     c_out << "Configuration class starting..." << std::endl;
@@ -7,14 +9,20 @@ ChanConf::ChanConf()
     IInitializeConfig();
 
     /* pgSQL settings */
-    const std::vector<std::string> pg_sql_settings = {"pghost", "pgdb", "pguser", "pgpwd", "pgport"};
+    const std::vector<std::string> pg_sql_settings = {"pghost", "pgdb", "pguser", "pgpwd"};
     foreach (const auto key, pg_sql_settings) {
-        pg[key] = chanserv_ini_.GetValue("main", key.c_str(), key.c_str());
+        pg[key] = QString::fromStdString(conf_value("main", key));
     }
+    pg["pgport"] = QString::fromStdString(conf_value("main", "pgport", "5432"));
 
     IInitializeDB();
 
     read_settings_from_db();
+
+    /* Настройки, которые хранятся не в БД, а в chanserv.toml */
+    sett["jira_browse_url"]     = conf_value("jira", "browse_url");
+    sett["jira_webhook_secret"] = conf_value("jira", "webhook_secret");
+    sett["session_ttl_hours"]   = conf_value("main", "session_ttl_hours", "24");
 }
 
 bool ChanConf::is_valid() const
@@ -25,14 +33,27 @@ bool ChanConf::is_valid() const
 void ChanConf::IInitializeConfig()
 {
     c_out << "ChanConf's config " << config_file_ << std::endl;
-    chanserv_ini_.SetUnicode();
 
-    SI_Error rc =chanserv_ini_.LoadFile(config_file_.c_str());
-    if (rc != 0)
+    try
+    {
+        chanserv_toml_ = toml::parse_file(config_file_);
+    }
+    catch (const toml::parse_error& e)
     {
         isValid = false;
-        c_out << "ChanConf::InitializeINIconfig: Cannot open this configuration file: " << config_file_ << " Please make sure, that configuration file is set in env.variable CHANSERV_CONFIG" << std::endl;
+        c_out << "ChanConf::IInitializeConfig: Cannot parse this configuration file: " << config_file_ << " (" << e.description() << ")"
+              << " Please make sure, that configuration file is set in env.variable CHANSERV_CONFIG" << std::endl;
     }
+}
+
+std::string ChanConf::conf_value(std::string_view section, std::string_view key, const std::string& default_value) const
+{
+    const auto node = chanserv_toml_[section][key];
+    if (const auto str = node.value<std::string>())
+        return *str;
+    if (const auto num = node.value<int64_t>())
+        return std::to_string(*num);
+    return default_value;
 }
 
 int ChanConf::IInitializeDB()
@@ -49,8 +70,9 @@ int ChanConf::IInitializeDB()
     if (!rres)
     {
         isValid = false;
-        c_out << pgDatabase.lastError().text().toStdString() << std::endl;
-        throw;
+        const std::string err = pgDatabase.lastError().text().toStdString();
+        c_out << err << std::endl;
+        throw std::runtime_error("PostgreSQL: " + err);
     }
 
     return 0;
@@ -59,10 +81,13 @@ int ChanConf::IInitializeDB()
 std::string ChanConf::get_setting(const std::string& field_name)
 {
     QSqlQuery pg_query(pgDatabase);
-    pg_query.exec("SELECT value FROM settings WHERE name = '" + QString::fromStdString(field_name) + "'");
-    pg_query.next();
+    pg_query.prepare("SELECT value FROM settings WHERE name = ?");
+    pg_query.addBindValue(QString::fromStdString(field_name));
+    if (!pg_query.exec() || !pg_query.next())
+        return "";
     return pg_query.value(0).toString().toStdString();
 }
+
 void ChanConf::read_settings_from_db()
 {
     c_out << "ChanConf: Start SELECTing settings from the database" << std::endl;
@@ -85,6 +110,7 @@ void ChanConf::read_settings_from_db()
         "script_path_mail_sender",
         "script_path_reboot",
         "support_TgID",
+        "tekla_admin_tgid",
         "tg_bot_token",
         "trello_token",
         "trello_key",

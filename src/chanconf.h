@@ -3,7 +3,8 @@
 
 #include "support.h"
 #include "structures.h"
-#include "simpleini.h"
+
+#include <toml++/toml.hpp>
 
 #include <qsqldatabase.h>
 #include <qsqlquery.h>
@@ -39,7 +40,10 @@ protected:
     std::string maxBotToken;    */
 
     const std::string config_file_ = qgetenv("CHANSERV_CONFIG").toStdString();
-    CSimpleIniA chanserv_ini_;
+    toml::table chanserv_toml_;
+
+    /* Значение из chanserv.toml в виде строки (строки и целые числа), иначе default_value */
+    std::string conf_value(std::string_view section, std::string_view key, const std::string& default_value = "") const;
 
     /* Совместная БД MSSQL Server для хранения данных addin-related */
     QSqlDatabase h_msDB  = QSqlDatabase::addDatabase("QODBC", "msiDB");

@@ -46,8 +46,9 @@ find_package(Qt6 REQUIRED COMPONENTS Test Core Network DBus Sql HttpServer)
 find_package(Boost 1.83 REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
-#libTgBot:      /* uncomment next line and comment to rebuild new verison of TgBot library */
-# include(tgbotsrc.inc)
+# tgbot-cpp собирается из сабмодуля lib/tgbot (git submodule update --init --recursive)
+set(ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(lib/tgbot EXCLUDE_FROM_ALL)
 
 FILE(GLOB CHANSERV_SRC
     ${PROJECT_SOURCE_DIR}/src/main.cpp
@@ -67,7 +68,6 @@ FILE(GLOB CHANSERV_SRC
     ${PROJECT_SOURCE_DIR}/src/jiraapi.h
     ${PROJECT_SOURCE_DIR}/src/serverdbus.cpp
     ${PROJECT_SOURCE_DIR}/src/serverdbus.h
-    ${PROJECT_SOURCE_DIR}/src/simpleini.h
     ${PROJECT_SOURCE_DIR}/src/structures.h
     ${PROJECT_SOURCE_DIR}/src/support.cpp
     ${PROJECT_SOURCE_DIR}/src/support.h
@@ -85,8 +85,7 @@ add_test(chanserv TestMinimal)
 
 # add_subdirectory(lib/QXlsx)
 target_link_libraries(chanserv m # manapihttp #QXlsx::QXlsx
-    #TgBot  /* uncomment and comment to rebuild new verison of TgBot library */    
-    ${PROJECT_SOURCE_DIR}/lib/libTgBot.a    # Должно идти ДО ssl и crypto
+    TgBot    # Должно идти ДО ssl и crypto
     boost_context
     boost_coroutine # apt install libboost-coroutine-dev libboost-coroutine1.83.0 libboost-coroutine1.83-dev libcurl4-gnutls-dev unixodbc-dev
     ssl crypto
@@ -105,6 +104,7 @@ target_include_directories(chanserv PUBLIC
 #   ${PROJECT_SOURCE_DIR}/lib/tgbot/lib/openssl-3.0.0/include
 #   ${PROJECT_SOURCE_DIR}/lib/tgbot/lib/boost_1_65_1            /* we'll use system's libboost-dev package */
     ${PROJECT_SOURCE_DIR}/lib/tgbot/include
+    ${PROJECT_SOURCE_DIR}/lib/tomlplusplus/include    # toml++ (header-only), чтение chanserv.toml
 )
 
 add_custom_target(copy_dependencies ALL

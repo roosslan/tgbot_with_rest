@@ -7,6 +7,7 @@
 #endif
 
 #include <regex>
+#include <stdexcept>
 
 
 using namespace TgBot;
@@ -188,8 +189,9 @@ int chanserv_bot::IInitializeDB()
     const bool rret = h_msDB.open();
     if (!rret)
     {
-        c_out << h_msDB.lastError().text().toStdString() << std::endl;
-        throw;
+        const std::string err = h_msDB.lastError().text().toStdString();
+        c_out << err << std::endl;
+        throw std::runtime_error("MSSQL: " + err);
     }
 
     return 0;
@@ -199,7 +201,7 @@ void chanserv_bot::initialize_tracking_apis()
 {
     c_out << "Starting APIs: Trello, Jira..." << std::endl;
     m_trello_api = new trello_api(sett["trello_key"], sett["trello_token"], sett["trello_prefix"]);
-    m_jira_api = new jira_api(sett["jira_token"], sett["jira_base_url"], m_tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
+    m_jira_api = new jira_api(sett["jira_token"], sett["jira_base_url"], sett["jira_browse_url"], m_tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
 }
 
 void chanserv_bot::bot_start(QCoreApplication *app)
@@ -349,13 +351,15 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
                 c_out << "Ошибка создания карточки. Сообщение разработчику отправлено." << std::endl;
             }
         }
-        catch (std::exception e)
+        catch (const std::exception& e)
         {
             std::cout << "Ошибка создания карточки: " << e.what() << std::endl;
             send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка создания карточки " + QString::fromLocal8Bit(e.what()).toStdString() + "\n" + card_description, *t_uD, kb_go_dashboard);
         }
 
-        t_uD->jira_task.id_card = *t_uD->created_card_id;
+        /* Если карточка в Trello не создалась, created_card_id остаётся nullptr */
+        if (t_uD->created_card_id != nullptr)
+            t_uD->jira_task.id_card = *t_uD->created_card_id;
 
         try
         {
@@ -370,7 +374,7 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
                 c_out << "Ошибка записи в базу данных. Сообщение supportTgID отправлено." << std::endl;
             }
         }
-        catch (std::exception e)
+        catch (const std::exception& e)
         {
             send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка записи в базу данных PostgreSQL.", *t_uD, kb_go_dashboard);
             c_out << "Ошибка записи в базу данных PostgreSQL. Сообщение разработчику отправлено." << std::endl;
@@ -387,6 +391,7 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
 
             /* Освобождаем память, std::string createdCardID был allocated в ф-ции trelloAPI->createNewCard() */
             delete t_uD->created_card_id;
+            t_uD->created_card_id = nullptr;
         }
 
         /* Уведомление админ.аппарата о появлениии новой задачи */
@@ -423,10 +428,10 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
                 for (int i = 0; i < t_uD->jira_task.v_local_file_paths.size(); ++i)
                     auto ret = m_jira_api->add_attach(t_uD->jira_task.v_local_file_paths[i], proj_name + "-" + itoa(res_issue_num));
             if (t_uD->jira_task.type == "TEKLA")
-                m_tg_bot.getApi().sendMessage(sett["tekla_admin_tgid"], "B Jira появилась новая задача: vm-srv051.local:8443/browse/TEKLA-" + itoa(res_issue_num));
+                m_tg_bot.getApi().sendMessage(sett["tekla_admin_tgid"], "B Jira появилась новая задача: " + sett["jira_browse_url"] + "TEKLA-" + itoa(res_issue_num));
         }
     }
-    catch (std::exception e)
+    catch (const std::exception& e)
     {
         c_out << "Ошибка создания задачи Jira: " << e.what() << std::endl;
         send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка создания задачи Jira " + QString::fromLocal8Bit(e.what()).toStdString() + card_description, *t_uD, kb_go_dashboard);
@@ -497,61 +502,80 @@ void chanserv_bot::service_notification_coroutine(const std::string& msg_notify,
 /* Возвращаем из ф-ции все данные написавшего в чат юзера: new_task, issues, recent messages etc */
 user_dispatcher* chanserv_bot::uniq_data(long tg_id)
 {
-    user_dispatcher* ret = nullptr;
-    foreach (auto itm, v_uD) {
-        if (itm->chat_user_tg_id == tg_id)
-            ret = itm;
-    }
-    return ret;
+    const auto it = m_sessions.find(tg_id);
+    if (it == m_sessions.end())
+        return nullptr;
+
+    it->second->last_activity = std::chrono::steady_clock::now();
+    return it->second.get();
+}
+
+void chanserv_bot::evict_idle_sessions()
+{
+    const auto now = std::chrono::steady_clock::now();
+
+    /* Проверяем не чаще раза в 10 минут */
+    if (now - m_last_sessions_cleanup < std::chrono::minutes(10))
+        return;
+    m_last_sessions_cleanup = now;
+
+    long ttl_hours = atol(sett["session_ttl_hours"].c_str());
+    if (ttl_hours <= 0)
+        ttl_hours = 24;
+    const auto ttl = std::chrono::hours(ttl_hours);
+
+    const size_t before = m_sessions.size();
+    std::erase_if(m_sessions, [&](const auto& item) { return now - item.second->last_activity > ttl; });
+
+    if (before != m_sessions.size())
+        c_out << "Удалено неактивных сессий: " << itoa(before - m_sessions.size()) << ", осталось: " << itoa(m_sessions.size()) << std::endl;
+
+    /* uD мог указывать на удалённую сессию */
+    uD = nullptr;
 }
 
 const std::string chanserv_bot::insert_revit_key_to_db(QSqlDatabase* odb, const user_dispatcher* t_uD)
 {
     QSqlQuery ms_query(*odb);
 
-    const QString strQuery = "SELECT TOP 1 master_key FROM master_keys WHERE tg_id = '" + QString::number(t_uD->chat_user_tg_id) + "' AND is_activated = 0";
-    ms_query.clear();
-    ms_query.exec(strQuery);
-
-    int requests_count = ms_query.numRowsAffected();
-    c_out << "Количество запросов на одобрение от юзера " + itoa(t_uD->chat_user_tg_id) + ": " + itoa(requests_count) << std::endl;
-    /* В таблице не существует открытых запросов на разблокировку/одобрение */
-    if (requests_count == 0)
+    ms_query.prepare("SELECT TOP 1 master_key FROM master_keys WHERE tg_id = ? AND is_activated = 0");
+    ms_query.addBindValue(QString::number(t_uD->chat_user_tg_id));
+    if (!ms_query.exec())
     {
-        ms_query.clear();
-        std::chrono::time_point time_point = std::chrono::system_clock::now() + std::chrono::hours(3);
-        const auto str_date_time = std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", time_point);
-
-        const std::string generated_revit_key = generate_revit_master_key(sett["fam_otp_key"]);
-        const QString to_masterkey_tab = "INSERT INTO master_keys ( tg_id, master_key, requested_by, requested_at, reason, is_activated ) VALUES('" +
-                                          QString::number(t_uD->chat_user_tg_id) + "', " +
-                                    "'" + QString::fromStdString(generated_revit_key) + "', " +
-                                    "'" + QString::fromStdString(t_uD->jira_task.consumer_name) + "', " +
-                                    "'" + QString::fromStdString(str_date_time) + "', " +
-                                    "'" + QString::fromStdString(t_uD->jira_task.key_reason) + "', 0);";
-
-        try
-        {
-            if(!ms_query.exec(to_masterkey_tab))
-                std::cout << odb->lastError().text().toStdString() << std::endl;
-            if(!odb->commit())
-                std::cout << odb->lastError().text().toStdString() << std::endl;
-        }
-        catch (std::exception e)
-        {
-            std::cout << e.what() << std::endl;
-            return "";
-        }
-
-        return generated_revit_key;
+        std::cout << ms_query.lastError().text().toStdString() << std::endl;
+        return "";
     }
-    /* Если есть открытый запрос, то возвращаем мастер ключ */
-    else
+
+    /* Если есть открытый запрос, то возвращаем мастер ключ.
+     * numRowsAffected() для SELECT через ODBC возвращает -1, поэтому проверяем через next() */
+    if (ms_query.next())
     {
-        ms_query.next();
+        c_out << "У юзера " + itoa(t_uD->chat_user_tg_id) + " уже есть открытый запрос на одобрение" << std::endl;
         return ms_query.value(0).toString().toStdString();
     }
-    return "";
+
+    /* В таблице не существует открытых запросов на разблокировку/одобрение */
+    ms_query.clear();
+    std::chrono::time_point time_point = std::chrono::system_clock::now() + std::chrono::hours(3);
+    const auto str_date_time = std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", time_point);
+
+    const std::string generated_revit_key = generate_revit_master_key(sett["fam_otp_key"]);
+    ms_query.prepare("INSERT INTO master_keys ( tg_id, master_key, requested_by, requested_at, reason, is_activated ) VALUES (?, ?, ?, ?, ?, 0)");
+    ms_query.addBindValue(QString::number(t_uD->chat_user_tg_id));
+    ms_query.addBindValue(QString::fromStdString(generated_revit_key));
+    ms_query.addBindValue(QString::fromStdString(t_uD->jira_task.consumer_name));
+    ms_query.addBindValue(QString::fromStdString(str_date_time));
+    ms_query.addBindValue(QString::fromStdString(t_uD->jira_task.key_reason));
+
+    if (!ms_query.exec())
+    {
+        std::cout << ms_query.lastError().text().toStdString() << std::endl;
+        return "";
+    }
+    if (!odb->commit())
+        std::cout << odb->lastError().text().toStdString() << std::endl;
+
+    return generated_revit_key;
 }
 
 int chanserv_bot::add_consumer_to_db(QSqlDatabase* odb, long tg_id, const std::string tg_link)
@@ -560,21 +584,17 @@ int chanserv_bot::add_consumer_to_db(QSqlDatabase* odb, long tg_id, const std::s
     else
     {
         QSqlQuery pg_query(*odb);
-        const QString ins_consumers_table = "INSERT INTO consumers ( id, username ) VALUES('" + QString::number(tg_id) + "', " +
-            "'" + QString::fromStdString(tg_link) + "');";
+        pg_query.prepare("INSERT INTO consumers ( id, username ) VALUES (?, ?)");
+        pg_query.addBindValue(QString::number(tg_id));
+        pg_query.addBindValue(QString::fromStdString(tg_link));
 
-        try
+        if(!pg_query.exec())
         {
-            if(!pg_query.exec(ins_consumers_table))
-                std::cout << odb->lastError().text().toStdString() << std::endl;
-            if(!odb->commit())
-                std::cout << odb->lastError().text().toStdString() << std::endl;
-        }
-        catch (std::exception e)
-        {
-            std::cout << e.what() << std::endl;
+            std::cout << pg_query.lastError().text().toStdString() << std::endl;
             return 1;
         }
+        if(!odb->commit())
+            std::cout << odb->lastError().text().toStdString() << std::endl;
     }
     return 0;
 }
@@ -587,37 +607,26 @@ int chanserv_bot::write_issue_to_db(QSqlDatabase* hwnd_db, const user_dispatcher
     if (table_uniq == table_tekla_issues)
         issues_table_name = "tekla_issues";
 
-    const std::string ins_issues_table = "INSERT INTO " + issues_table_name +
-    " ( consumer_id,    \
-        consumer_name,  \
-        consumer_link,  \
-        section,        \
-        category,       \
-        theme,          \
-        description,    \
-        created_time,   \
-        idcard,         \
-        card_status,    \
-        photos,         \
-        project         \
-                       )\
-    VALUES('"
-       + itoa(ud->jira_task.consumer_tg_id)             + "', " +
-        "'" + ud->jira_task.consumer_name               + "', " +
-        "'" + ud->jira_task.consumer_tg_username_link   + "', " +
-        "'" + ud->jira_task.section                     + "', " +
-        "'" + ud->jira_task.category                    + "', " +
-        "'" + ud->jira_task.subj                        + "', " +
-        "'" + ud->jira_task.description                 + "', " +
-        "'" + ud->jira_task.creation_date               + "', " +
-        "'" + ud->jira_task.id_card                     + "', " +
-        "'pending', " +
-        "'" + ud->jira_task.photoIDs                    + "', " +
-        "'" + ud->jira_task.project                     + "');";
+    /* Имя таблицы выбирается только из двух констант, значения передаются через bind */
+    pg_query.prepare(QString::fromStdString("INSERT INTO " + issues_table_name +
+        " ( consumer_id, consumer_name, consumer_link, section, category, theme, description,"
+        "   created_time, idcard, card_status, photos, project )"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)"));
+    pg_query.addBindValue(QString::fromStdString(itoa(ud->jira_task.consumer_tg_id)));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.consumer_name));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.consumer_tg_username_link));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.section));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.category));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.subj));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.description));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.creation_date));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.id_card));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.photoIDs));
+    pg_query.addBindValue(QString::fromStdString(ud->jira_task.project));
 
     try
     {
-        if(!pg_query.exec(QString::fromStdString(ins_issues_table))){
+        if(!pg_query.exec()){
             std::cout << "sqlexec: " << hwnd_db->lastError().text().toStdString() << std::endl;
             std::cout << "psqlexec: " << pg_query.lastError().text().toStdString() << std::endl;
             return 1;
@@ -628,7 +637,7 @@ int chanserv_bot::write_issue_to_db(QSqlDatabase* hwnd_db, const user_dispatcher
             return 1;
         }
     }
-    catch (std::exception e)
+    catch (const std::exception& e)
     {
         std::cout << "sqlexception: " << e.what() << std::endl;
         return 1;
@@ -664,8 +673,6 @@ chanserv_bot::~chanserv_bot()
 {
     h_msDB.close();
 
-    chanserv_ini_.Reset();
-
     /* delete trelloAPI; */
 }
 
@@ -690,6 +697,11 @@ bool chanserv_bot::is_staff(const long id)
     else return false;
 }
 
+bool chanserv_bot::is_staff_or_developer(const long id)
+{
+    return is_staff(id) || is_developer(id);
+}
+
 bool chanserv_bot::is_allowed_contractor(const long id)
 {
     if (std::find(v_allowed_contractors.begin(), v_allowed_contractors.end(), id) != v_allowed_contractors.end())
@@ -705,14 +717,12 @@ void chanserv_bot::get_my_issues(const long fromMessageId)
     {
         QSqlQuery pg_query(pgDatabase);
 
-        const QString str_query = "SELECT \
-            id, consumer_link, consumer_name, section, category, theme, description, created_time, idCard, \
-            photos, project, contractor_list, contractor_link, contractor_name  \
-                                   FROM issues \
-                                   WHERE contractor_id = '" + QString::number(fromMessageId) + "'";
-
-        pg_query.clear();
-        pg_query.exec(str_query);
+        pg_query.prepare("SELECT "
+            "id, consumer_link, consumer_name, section, category, theme, description, created_time, idCard, "
+            "photos, project, contractor_list, contractor_link, contractor_name "
+            "FROM issues WHERE contractor_id = ?");
+        pg_query.addBindValue(QString::number(fromMessageId));
+        pg_query.exec();
         int pg_tasks_count = pg_query.numRowsAffected();
         c_out << "pg, tasks count: " << itoa(pg_tasks_count) << std::endl;
 
