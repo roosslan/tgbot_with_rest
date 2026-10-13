@@ -72,9 +72,7 @@ m_tg_bot.getEvents().onAnyMessage([this](Message::Ptr message)
     uD = uniq_data(message->from->id);
     if (!uD)
     {
-        auto session = std::make_unique<user_dispatcher>(message->from->id, message->from->username, message->from->firstName);
-        uD = session.get();
-        m_sessions.emplace(message->from->id, std::move(session));
+        uD = m_sessions.create(message->from->id, message->from->username, message->from->firstName);
     }
 });                                                         };
 
@@ -86,12 +84,9 @@ void chanserv_bot::handle_small_talk()
         if (uD)
         {
           /* Повторная проверка прав: служебный шаг мог быть выставлен поддельным callback'ом */
-          const int stat = uD->jira_task.stat_;
-          const bool developer_step = stat == developer_send_msg_as_bot || stat == developer_send_msg_to_gpt || stat == developer_run_host_command;
-          const bool staff_step = stat == staff_set_new_msi_version || stat == staff_add_new_contractor;
-          if ((developer_step && !is_developer(message->from->id)) || (staff_step && !is_staff_or_developer(message->from->id)))
+          if (!has_role(message->from->id, role_for_step(uD->jira_task.stat_)))
           {
-              c_out << "Отказ: " << itoa(message->from->id) << " не имеет прав на шаг " << itoa(stat) << std::endl;
+              c_out << "Отказ: " << itoa(message->from->id) << " не имеет прав на шаг " << itoa(uD->jira_task.stat_) << std::endl;
               uD->jira_task = {};
               return;
           }

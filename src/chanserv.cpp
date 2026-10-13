@@ -502,12 +502,7 @@ void chanserv_bot::service_notification_coroutine(const std::string& msg_notify,
 /* Возвращаем из ф-ции все данные написавшего в чат юзера: new_task, issues, recent messages etc */
 user_dispatcher* chanserv_bot::uniq_data(long tg_id)
 {
-    const auto it = m_sessions.find(tg_id);
-    if (it == m_sessions.end())
-        return nullptr;
-
-    it->second->last_activity = std::chrono::steady_clock::now();
-    return it->second.get();
+    return m_sessions.find(tg_id);
 }
 
 void chanserv_bot::evict_idle_sessions()
@@ -524,11 +519,9 @@ void chanserv_bot::evict_idle_sessions()
         ttl_hours = 24;
     const auto ttl = std::chrono::hours(ttl_hours);
 
-    const size_t before = m_sessions.size();
-    std::erase_if(m_sessions, [&](const auto& item) { return now - item.second->last_activity > ttl; });
-
-    if (before != m_sessions.size())
-        c_out << "Удалено неактивных сессий: " << itoa(before - m_sessions.size()) << ", осталось: " << itoa(m_sessions.size()) << std::endl;
+    const size_t evicted = m_sessions.evict_idle(now, ttl);
+    if (evicted > 0)
+        c_out << "Удалено неактивных сессий: " << itoa(evicted) << ", осталось: " << itoa(m_sessions.size()) << std::endl;
 
     /* uD мог указывать на удалённую сессию */
     uD = nullptr;
@@ -697,9 +690,9 @@ bool chanserv_bot::is_staff(const long id)
     else return false;
 }
 
-bool chanserv_bot::is_staff_or_developer(const long id)
+bool chanserv_bot::has_role(const long id, const required_role role)
 {
-    return is_staff(id) || is_developer(id);
+    return is_allowed(role, is_staff(id), is_developer(id));
 }
 
 bool chanserv_bot::is_allowed_contractor(const long id)

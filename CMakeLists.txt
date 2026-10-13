@@ -50,48 +50,41 @@ include_directories(${Boost_INCLUDE_DIRS})
 set(ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(lib/tgbot EXCLUDE_FROM_ALL)
 
-FILE(GLOB CHANSERV_SRC
-    ${PROJECT_SOURCE_DIR}/src/main.cpp
-    ${PROJECT_SOURCE_DIR}/src/chanserv_keyboards.cpp
-    ${PROJECT_SOURCE_DIR}/src/chanserv_on_any_message.cpp
-    ${PROJECT_SOURCE_DIR}/src/chanserv_callbacks.cpp
-    ${PROJECT_SOURCE_DIR}/src/chanserv_commands.cpp
-    ${PROJECT_SOURCE_DIR}/src/abstract_chanserv.cpp
-    ${PROJECT_SOURCE_DIR}/src/abstract_chanserv.h
-    ${PROJECT_SOURCE_DIR}/src/chanconf.cpp
-    ${PROJECT_SOURCE_DIR}/src/chanconf.h
-    ${PROJECT_SOURCE_DIR}/src/adaptorimp.cpp
-    ${PROJECT_SOURCE_DIR}/src/adaptorimp.h
-    ${PROJECT_SOURCE_DIR}/src/chanserv.cpp
-    ${PROJECT_SOURCE_DIR}/src/chanserv.h
-    ${PROJECT_SOURCE_DIR}/src/jiraapi.cpp
-    ${PROJECT_SOURCE_DIR}/src/jiraapi.h
-    ${PROJECT_SOURCE_DIR}/src/serverdbus.cpp
-    ${PROJECT_SOURCE_DIR}/src/serverdbus.h
-    ${PROJECT_SOURCE_DIR}/src/structures.h
-    ${PROJECT_SOURCE_DIR}/src/support.cpp
-    ${PROJECT_SOURCE_DIR}/src/support.h
-    ${PROJECT_SOURCE_DIR}/src/trelloapi.cpp
-    ${PROJECT_SOURCE_DIR}/src/trelloapi.h
-    ${PROJECT_SOURCE_DIR}/src/sensitive_data.h
-#   ${PROJECT_SOURCE_DIR}/src/qtests.cpp
-#   ${PROJECT_SOURCE_DIR}/src/qtests.h
-#   ${PROJECT_SOURCE_DIR}/src/tm_bot.hpp
-#   ${PROJECT_SOURCE_DIR}/src/maxbotapi.h
-#   ${PROJECT_SOURCE_DIR}/src/maxbotapi.cpp
+# Всё, кроме main.cpp, собирается в библиотеку: её используют и бот, и тесты
+add_library(chanserv_core STATIC
+    src/chanserv_keyboards.cpp
+    src/chanserv_on_any_message.cpp
+    src/chanserv_callbacks.cpp
+    src/chanserv_commands.cpp
+    src/abstract_chanserv.cpp
+    src/abstract_chanserv.h
+    src/access.h
+    src/chanconf.cpp
+    src/chanconf.h
+    src/adaptorimp.cpp
+    src/adaptorimp.h
+    src/chanserv.cpp
+    src/chanserv.h
+    src/jiraapi.cpp
+    src/jiraapi.h
+    src/serverdbus.cpp
+    src/serverdbus.h
+    src/session_store.h
+    src/structures.h
+    src/support.cpp
+    src/support.h
+    src/trelloapi.cpp
+    src/trelloapi.h
 )
-add_executable(chanserv ${CHANSERV_SRC})
-add_test(chanserv TestMinimal)
 
 # add_subdirectory(lib/QXlsx)
-target_link_libraries(chanserv m # manapihttp #QXlsx::QXlsx
+target_link_libraries(chanserv_core PUBLIC m # manapihttp #QXlsx::QXlsx
     TgBot    # Должно идти ДО ssl и crypto
     boost_context
     boost_coroutine # apt install libboost-coroutine-dev libboost-coroutine1.83.0 libboost-coroutine1.83-dev libcurl4-gnutls-dev unixodbc-dev
     ssl crypto
     odbc pthread
     Qt6::Sql
-    Qt6::Test
     Qt6::Core
     Qt6::DBus
     Qt6::Network
@@ -99,13 +92,26 @@ target_link_libraries(chanserv m # manapihttp #QXlsx::QXlsx
     ${CURL_LIBRARIES}
 )
 
-target_include_directories(chanserv PUBLIC
+target_include_directories(chanserv_core PUBLIC
     ${PROJECT_SOURCE_DIR}
-#   ${PROJECT_SOURCE_DIR}/lib/tgbot/lib/openssl-3.0.0/include
-#   ${PROJECT_SOURCE_DIR}/lib/tgbot/lib/boost_1_65_1            /* we'll use system's libboost-dev package */
+    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/lib/tgbot/include
     ${PROJECT_SOURCE_DIR}/lib/tomlplusplus/include    # toml++ (header-only), чтение chanserv.toml
 )
+
+add_executable(chanserv src/main.cpp)
+target_link_libraries(chanserv PRIVATE chanserv_core)
+
+# Тесты: ctest --test-dir <build> --output-on-failure
+option(CHANSERV_BUILD_TESTS "Собирать тесты chanserv" ON)
+if (CHANSERV_BUILD_TESTS)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_executable(chanserv_tests tests/tst_chanserv.cpp)
+    target_link_libraries(chanserv_tests PRIVATE chanserv_core Qt6::Test)
+    target_compile_definitions(chanserv_tests PRIVATE CHANSERV_SAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docker-img/chanserv.toml")
+    set_target_properties(chanserv_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
+    add_test(NAME chanserv_tests COMMAND chanserv_tests)
+endif()
 
 add_custom_target(copy_dependencies ALL
     COMMENT "Copying dependencies to ${PROJECT_SOURCE_DIR}/bin"

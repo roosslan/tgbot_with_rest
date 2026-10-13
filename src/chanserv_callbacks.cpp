@@ -1,20 +1,19 @@
 #include "chanserv.h"
 #include "support.h"
 
-#include <set>
-
 void chanserv_bot::on_callback_query()
 {
     m_tg_bot.getEvents().onCallbackQuery([this](CallbackQuery::Ptr query)
     {
+        /* callback_data присылает клиент, поэтому права проверяются по самому действию (access.h) */
+        if (!has_role(query->from->id, role_for_callback(query->data)))
+        {
+            c_out << "Отказ: " << itoa(query->from->id) << " не имеет прав на " << query->data << std::endl;
+            return;
+        }
+
         if (query->data.starts_with("approve_key_request") || query->data.starts_with("_reject_key_request"))
         {
-            /* callback_data присылает клиент, поэтому одобрять и отклонять ключи может только staff */
-            if (!is_staff_or_developer(query->from->id))
-            {
-                c_out << "Отказ: " << itoa(query->from->id) << " не staff, но прислал " << query->data << std::endl;
-                return;
-            }
 
             std::int64_t requester_id = 0;
             const int len = query->data.size();
@@ -68,17 +67,6 @@ void chanserv_bot::on_callback_query()
         uD = uniq_data(query->from->id);
         if (uD)
         {
-            /* callback_data присылает клиент, и Telegram не сверяет его с кнопками сообщения,
-             * поэтому права на служебные действия проверяются здесь, а не только при показе клавиатуры */
-            static const std::set<std::string> developer_actions = {"msg_as_bot", "msg_to_gpt", "run_command", "reboot_host", "send_file"};
-            static const std::set<std::string> staff_actions = {"add_new_contractor", "set_new_msi_version"};
-            if ((developer_actions.contains(query->data) && !is_developer(query->from->id)) ||
-                (staff_actions.contains(query->data) && !is_staff_or_developer(query->from->id)))
-            {
-                c_out << "Отказ: " << itoa(query->from->id) << " не имеет прав на " << query->data << std::endl;
-                return;
-            }
-
             /* Чтобы не получить бан "429 too many requests", фильтруем - не нажал ли юзер старые инлайновые кнопки со старых бесед с ботом */
             const pgdb_issue *get_clicked_issue = get_selected_issue_id(query->message->messageId, uD->pgdb_issues, uD->recent_msg_ids, uD->recent_msgs);
 

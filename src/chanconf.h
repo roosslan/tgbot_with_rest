@@ -6,6 +6,9 @@
 
 #include <toml++/toml.hpp>
 
+/* Значение [section] key из TOML в виде строки (строки и целые числа), иначе default_value */
+std::string toml_value_as_string(const toml::table& tbl, std::string_view section, std::string_view key, const std::string& default_value = "");
+
 #include <qsqldatabase.h>
 #include <qsqlquery.h>
 #include <qsqlerror.h>

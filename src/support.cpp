@@ -619,12 +619,33 @@ void cout_small_talk(user_dispatcher &UD, const std::string fieldName, const Mes
 std::string truncate_msg_from_user(std::string str, const size_t width)
 {
     QString qstr = QString::fromStdString(str);
-    if (str.length() > width)
+    /* Длина в символах, а не в байтах UTF-8 */
+    if (static_cast<size_t>(qstr.length()) > width)
     {
         qstr = qstr.leftJustified(width, '.', true);
         qstr += "...";
     }
     return qstr.toStdString();
+}
+
+bool secure_equals(const QByteArray &received, const std::string &expected)
+{
+    if (received.size() != static_cast<qsizetype>(expected.size()))
+        return false;
+
+    unsigned char diff = 0;
+    for (qsizetype i = 0; i < received.size(); ++i)
+        diff |= static_cast<unsigned char>(received[i]) ^ static_cast<unsigned char>(expected[i]);
+    return diff == 0;
+}
+
+bool webhook_token_valid(const QUrl &url, const std::string &secret)
+{
+    if (secret.empty())
+        return false;
+
+    const QByteArray token = QUrlQuery(url).queryItemValue("token", QUrl::FullyDecoded).toUtf8();
+    return secure_equals(token, secret);
 }
 
 void send_email(const std::string& recipient, const std::string& script_path, const std::string& url)
@@ -641,11 +662,15 @@ void send_email(const std::string& recipient, const std::string& script_path, co
 
 std::string generate_revit_master_key(const std::string &secret_key, const int digits, const int time_step)
 {
+    return generate_totp(secret_key, QDateTime::currentSecsSinceEpoch(), digits, time_step);
+}
+
+/* TOTP (RFC 6238) на HMAC-SHA1 для заданного Unix-времени */
+std::string generate_totp(const std::string &secret_key, const qint64 unix_time, const int digits, const int time_step)
+{
     const QByteArray qba_SecretKey = QString::fromStdString(secret_key).toUtf8();
 
-    /* rib_16_11_2025 заменено генератором псевдослучайного количества секунд Get current Unix time (seconds) qint64 currentUnixTime = QDateTime::currentSecsSinceEpoch(); */
-    const qint64 currentUnixTime = QDateTime::currentSecsSinceEpoch();QRandomGenerator64::global()->generate();
-    qint64 timeStepValue = currentUnixTime / time_step;
+    qint64 timeStepValue = unix_time / time_step;
 
     /* Convert timeStepValue to big-endian 8-byte array */
     QByteArray timeStepBytes(8, '\0');

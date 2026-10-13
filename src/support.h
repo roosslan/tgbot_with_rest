@@ -14,6 +14,8 @@
 #include <unicode/utypes.h>
 
 #include <QSqlDatabase>
+#include <QUrl>
+#include <QUrlQuery>
 
 #include <boost/json.hpp>
 #include "boost/regex.hpp"
@@ -154,6 +156,12 @@ void send_email(const std::string &recipient, const std::string &script_path, co
 
 /* Ф-ция для генерации OTP */
 std::string generate_revit_master_key(const std::string &secret_key, const int digits = 6, const int time_step = 2);
+std::string generate_totp(const std::string &secret_key, const qint64 unix_time, const int digits = 6, const int time_step = 2);
+
+/* Сравнение строк за время, не зависящее от совпавшего префикса (для секретов) */
+bool secure_equals(const QByteArray &received, const std::string &expected);
+/* Проверка параметра ?token= вебхука, при пустом secret всегда false */
+bool webhook_token_valid(const QUrl &url, const std::string &secret);
 
 template <typename Result>
 static Result with_mutex(std::mutex& mutex, std::function<Result()> func)
