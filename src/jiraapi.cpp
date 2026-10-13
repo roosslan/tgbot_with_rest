@@ -5,11 +5,12 @@
 #include <boost/json/src.hpp>
 #endif
 
-jira_api::jira_api(const std::string& token, const std::string& base_url, const TgBot::Api &api, const std::string& support_tg_id, const QSqlDatabase& pgsql_db, const std::string& mail_script_path): m_pg_database_(const_cast<QSqlDatabase&>(pgsql_db))
+jira_api::jira_api(const std::string& token, const std::string& base_url, const std::string& browse_url, const TgBot::Api &api, const std::string& support_tg_id, const QSqlDatabase& pgsql_db, const std::string& mail_script_path): m_pg_database_(const_cast<QSqlDatabase&>(pgsql_db))
 {
     m_pg_database_ = pgsql_db;
     m_jira_token_ = token;
     m_base_url_ = QString::fromStdString(base_url);
+    m_browse_url_ = browse_url;
     tg_bot_api_ = &api;
     m_support_tg_id_ = atol(support_tg_id.c_str());
     m_mail_sender_path_ = mail_script_path;
@@ -325,10 +326,12 @@ int jira_api::get_task_info(const std::string& issue_key)
             if (!assignee_email.empty())
             {
                 QSqlQuery pg_query(m_pg_database_);
-                pg_query.exec("SELECT id FROM contractors WHERE email = '" + QString::fromStdString(assignee_email).toLower() + "'");
+                pg_query.prepare("SELECT id FROM contractors WHERE email = ?");
+                pg_query.addBindValue(QString::fromStdString(assignee_email).toLower());
+                pg_query.exec();
                 pg_query.next();
                 c_out << pg_query.value(0).toString().toStdString() << std::endl;
-                send_email(assignee_email, m_mail_sender_path_, "https://vm-srv051.local:8443/browse/" + issue_key);
+                send_email(assignee_email, m_mail_sender_path_, m_browse_url_ + issue_key);
             }
         }
         catch(const std::exception& e)

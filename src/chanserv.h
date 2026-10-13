@@ -5,12 +5,13 @@
 #include "structures.h"
 #include "support.h"
 #include "jiraapi.h"
-#include "simpleini.h"
 /*
 #include "maxbotapi.h"
 #include "tm_bot.hpp"
 */
 #include <iostream>
+#include <memory>
+#include <unordered_map>
 
 #include <QtSql>
 #include <QSqlDatabase>
@@ -54,8 +55,9 @@ public:
     trello_api* m_trello_api;
 
     /* Блок уникальных данных для каждого юзера */
-    user_dispatcher* uD;
-    std::vector<user_dispatcher*> v_uD;
+    user_dispatcher* uD = nullptr;
+    std::unordered_map<long, std::unique_ptr<user_dispatcher>> m_sessions;
+    std::chrono::steady_clock::time_point m_last_sessions_cleanup = std::chrono::steady_clock::now();
     /* ======================================== */
 
     ReplyKeyboardMarkup::Ptr  kb_ganzel;         /* Основная non-inline клавиатура в строке ввода */
@@ -132,10 +134,10 @@ public:
     bool is_db_consumer(const long id);
     bool is_staff(const long id);
     bool is_allowed_contractor(const long id);
+    bool is_staff_or_developer(const long id);
     const std::string insert_revit_key_to_db(QSqlDatabase* odb, const user_dispatcher* t_uD);
     int  add_consumer_to_db(QSqlDatabase* odb, long tg_id, std::string tg_link);
     int  write_issue_to_db(QSqlDatabase* hwnd_db, const user_dispatcher* ud, int table_uniq);
-
     /* Фоновой процесс со служебными задачами */
     void qt_bg_worker(QElapsedTimer* timer);
     void jira_webhooks_handler(const std::string& request_url);
@@ -145,4 +147,6 @@ public:
 
     /* Разделяем пользовательские сессии не потоками и не, прости Господи - корутинами */
     user_dispatcher* uniq_data(const long tg_id);
+    /* Удаляет сессии юзеров, не обращавшихся к боту дольше session_ttl_hours */
+    void evict_idle_sessions();
 };

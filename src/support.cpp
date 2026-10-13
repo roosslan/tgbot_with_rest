@@ -96,13 +96,7 @@ std::string escape_json_entire_text(std::string_view input_text) {
 }
 void escape_all (user_dispatcher& UD)
 {
-    /* rib_24.12.2025 доп.экран. символа ' для pgsql */
-    boost::replace_all(UD.jira_task.category, "'", "''");
-    boost::replace_all(UD.jira_task.consumer_name, "'", "''");
-    boost::replace_all(UD.jira_task.description, "'", "''");
-    boost::replace_all(UD.jira_task.project, "'", "''");
-    boost::replace_all(UD.jira_task.section, "'", "''");
-    boost::replace_all(UD.jira_task.subj, "'", "''");
+    /* Символ ' больше не удваивается: в SQL значения передаются через bind */
 
     /* Внутри labels (т.е. в секции) запрещены пробелы */
     boost::replace_all(UD.jira_task.section, " ", "");
@@ -404,8 +398,9 @@ bool delete_issue_from_db(const QSqlDatabase* db, const QString issue_id)
 {
     /* И удаляем карточку из нашей БД */
     QSqlQuery Qtuery(*db);
-    const auto res = Qtuery.exec("DELETE FROM issues WHERE idCard = '" + issue_id + "'");
-    return res;
+    Qtuery.prepare("DELETE FROM issues WHERE idCard = ?");
+    Qtuery.addBindValue(issue_id);
+    return Qtuery.exec();
 }
 
 /* Handler, чтобы qDebug писал свой вывод в файл */

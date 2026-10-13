@@ -1,0 +1,34 @@
+# Конфигурация Chanserv. Путь к файлу задаётся переменной окружения CHANSERV_CONFIG.
+# Остальные настройки бота (токены, пути к скриптам, id чатов) хранятся в таблице settings PostgreSQL.
+
+[db]
+server = "10.10.10.10"
+port = 1433
+database = "chanserv"
+uid = "chanserv"
+pwd = ""
+
+[main]
+gpt_url = "https://example.ru/s6E1n1:8443"
+pghost = "10.11.11.11"
+pgport = 5432
+pgdb = "chanserv"
+pguser = "chanserv"
+pgpwd = ""
+# Через сколько часов бездействия сессия юзера удаляется из памяти
+session_ttl_hours = 24
+
+[jira]
+# Префикс ссылки на задачу, к нему дописывается ключ задачи (TEKLA-123)
+browse_url = "https://vm-srv051.local:8443/browse/"
+# Секрет вебхуков. В Jira адрес вебхука указывается вида
+# http://<host>:<port_jira_webhook>/UPD/${issue.key}?token=<webhook_secret>
+# Пустое значение отключает приём вебхуков
+webhook_secret = ""
+
+[db_msi]
+server = "10.11.11.11"
+port = 1433
+database = "mssql"
+uid = "mssql"
+pwd = ""

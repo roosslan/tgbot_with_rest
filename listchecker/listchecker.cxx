@@ -430,7 +430,7 @@ void list_checker::initialize_tracking_apis()
     c_out << "ListChecker: Initializing APIs: Trello, Jira..." << std::endl;
 
     p_trello = new trello_api(sett["trello_key"], sett["trello_token"], sett["trello_prefix"]);
-    p_jira   = new jira_api(sett["jira_token"], sett["jira_base_url"], tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
+    p_jira   = new jira_api(sett["jira_token"], sett["jira_base_url"], sett["jira_browse_url"], tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
 }
 
 void list_checker::nix_bg_worker(QElapsedTimer* timer)

@@ -20,3 +20,6 @@
 [submodule "lib/cpprestsdk"]
 	path = lib/cpprestsdk
 	url = https://github.com/microsoft/cpprestsdk
+[submodule "lib/tomlplusplus"]
+	path = lib/tomlplusplus
+	url = https://github.com/marzer/tomlplusplus

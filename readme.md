@@ -33,6 +33,25 @@ May 2026    v.21.1
 - boost
 - curl
 - openssl
+- tgbot-cpp, toml++ (сабмодули в lib/)
+
+### Сборка
+
+Перед сборкой необходимо получить сабмодули:
+
+    git submodule update --init
+
+Драйвер Microsoft ODBC 18 для SQL Server и mssql-tools18 в репозитории не хранятся. Их необходимо установить из репозитория Microsoft по инструкции:
+https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server \
+В Docker-образе они ставятся автоматически (docker-img/Dockerfile).
+
+### Конфигурация
+
+- `docker-img/chanserv.toml` — подключение к PostgreSQL, адрес Jira (`[jira] browse_url`), секрет вебхуков (`[jira] webhook_secret`), время жизни сессий (`session_ttl_hours`). Путь к файлу задаётся переменной окружения `CHANSERV_CONFIG`.
+- Таблица `settings` PostgreSQL — токены Telegram, Trello, Jira и пути к скриптам.
+- `src/sensitive_data.h.example` — шаблон для `src/sensitive_data.h`, сам файл в git не добавляется.
+- Вебхук в Jira необходимо настроить на адрес `http://<host>:<port_jira_webhook>/UPD/${issue.key}?token=<webhook_secret>`. Запросы без верного token отклоняются с кодом 403. Если `webhook_secret` пустой, приём вебхуков отключён.
+- `docker-img/sendmail.ps1` — отправка HTML-писем через корпоративный SMTP. Параметры SMTP задаются переменными окружения `CHANSERV_SMTP_*` (см. `docker-img/run.env`), пароль передаётся только через `CHANSERV_SMTP_PASSWORD`.
 
 \
 Minimal Qt configuration:

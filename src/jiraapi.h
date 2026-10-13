@@ -20,6 +20,7 @@ class jira_api
 {
     std::string m_jira_token_;
     QString     m_base_url_;
+    std::string m_browse_url_;   /* Префикс ссылки на задачу, например https://jira.local:8443/browse/ */
     long        m_support_tg_id_;
     const TgBot::Api* tg_bot_api_;
     QSqlDatabase& m_pg_database_;
@@ -29,7 +30,7 @@ private slots:
     void onFinished();
 
 public:
-    jira_api(const std::string& token, const std::string& base_url, const TgBot::Api &api, const std::string& support_tg_id, const QSqlDatabase& pgsql_db, const std::string& mail_script_path);
+    jira_api(const std::string& token, const std::string& base_url, const std::string& browse_url, const TgBot::Api &api, const std::string& support_tg_id, const QSqlDatabase& pgsql_db, const std::string& mail_script_path);
     ~jira_api();
 
     static size_t curl_write_callback(const char* buff_ptr, size_t sz, size_t cnt_memb, void* userdata);

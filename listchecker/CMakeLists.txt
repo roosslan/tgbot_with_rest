@@ -29,6 +29,10 @@ set(CMAKE_AUTOMOC ON)   # w/o automoc the Q_OBJECT in will throw undefined refer
 find_package(Boost 1.83 REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
+# tgbot-cpp собирается из сабмодуля lib/tgbot (git submodule update --init)
+set(ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(${PROJECT_SOURCE_DIR}/../lib/tgbot ${CMAKE_BINARY_DIR}/tgbot EXCLUDE_FROM_ALL)
+
 ## curl
 find_package(CURL 8.5.0)
 if (CURL_FOUND)
@@ -49,7 +53,6 @@ FILE(GLOB SOURCES
     ${PROJECT_SOURCE_DIR}/../src/adaptorimp.h
     ${PROJECT_SOURCE_DIR}/../src/jiraapi.cpp
     ${PROJECT_SOURCE_DIR}/../src/jiraapi.h
-    ${PROJECT_SOURCE_DIR}/../src/simpleini.h
     ${PROJECT_SOURCE_DIR}/../src/structures.h
     ${PROJECT_SOURCE_DIR}/../src/support.cpp
     ${PROJECT_SOURCE_DIR}/../src/support.h
@@ -66,7 +69,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Network DBus Sql HttpServer)
 # find_package(manapihttp)
 
 target_link_libraries(listchecker m manapihttp
-    ${PROJECT_SOURCE_DIR}/../lib/libTgBot.a # Должно идти ДО ssl и crypto
+    TgBot    # Должно идти ДО ssl и crypto
     # Иначе будет "Boost: undefined reference to symbol 'SSL_get_verify_callback@@OPENSSL_3.0.0'
     ssl crypto # cpprestsdk::cpprest cjson
     odbc pthread
@@ -82,6 +85,7 @@ target_include_directories(
     ${PROJECT_SOURCE_DIR}
     # ${PROJECT_SOURCE_DIR}/../lib/cpprestsdk
     ${PROJECT_SOURCE_DIR}/../lib/tgbot/include
+    ${PROJECT_SOURCE_DIR}/../lib/tomlplusplus/include    # toml++ (header-only), чтение chanserv.toml
 )
 
 add_custom_target(copy_dependencies ALL

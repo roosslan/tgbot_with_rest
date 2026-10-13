@@ -65,13 +65,16 @@ m_tg_bot.getEvents().onAnyMessage([this](Message::Ptr message)
 
     std::cout << message->from->firstName << " @" << message->from->username << " (" << message->from->id << "), текст: \"" << message->text << "\"" << std::endl;
 
+    /* Удаляем сессии давно не писавших юзеров, чтобы m_sessions не рос бесконечно */
+    evict_idle_sessions();
+
     /* Если на нового написавшего еще не заведено дело, то добавляем его в массив юзеров, активных в данном запуске бота */
     uD = uniq_data(message->from->id);
     if (!uD)
     {
-        uD = new user_dispatcher(message->from->id, message->from->username, message->from->firstName);
-        /* uD->jiraTask = new newTask(); */
-        v_uD.push_back(uD);
+        auto session = std::make_unique<user_dispatcher>(message->from->id, message->from->username, message->from->firstName);
+        uD = session.get();
+        m_sessions.emplace(message->from->id, std::move(session));
     }
 });                                                         };
 
@@ -82,6 +85,17 @@ void chanserv_bot::handle_small_talk()
         uD = uniq_data(message->from->id);
         if (uD)
         {
+          /* Повторная проверка прав: служебный шаг мог быть выставлен поддельным callback'ом */
+          const int stat = uD->jira_task.stat_;
+          const bool developer_step = stat == developer_send_msg_as_bot || stat == developer_send_msg_to_gpt || stat == developer_run_host_command;
+          const bool staff_step = stat == staff_set_new_msi_version || stat == staff_add_new_contractor;
+          if ((developer_step && !is_developer(message->from->id)) || (staff_step && !is_staff_or_developer(message->from->id)))
+          {
+              c_out << "Отказ: " << itoa(message->from->id) << " не имеет прав на шаг " << itoa(stat) << std::endl;
+              uD->jira_task = {};
+              return;
+          }
+
           switch (uD->jira_task.stat_) {
             case revit_master_key_firstname_step2: /* Прислали ФИО для ключа Revit */
             {
@@ -127,18 +141,29 @@ void chanserv_bot::handle_small_talk()
             case staff_add_new_contractor:
             {
                 const QStringList contractor_parts = QString::fromStdString(message->text).split("\\");
-                /* Добавляем нового исполнителя в БД в таблицу contractors */
-                const QString ins_contractors_table = "INSERT INTO contractors (id, name, link, trello_list, email) VALUES ('" + contractor_parts.at(0) + "'," +
-                                              "'" + contractor_parts.at(4) + "'," +
-                                              "'" + contractor_parts.at(1) + "'," +
-                                              "'" + contractor_parts.at(2) + "'," +
-                                              "'" + contractor_parts.at(3) + "');";
+                if (contractor_parts.size() != 5)
+                {
+                    m_tg_bot.getApi().sendMessage(message->chat->id, "Ожидается 5 полей через \\, получено " + itoa(contractor_parts.size()) + ". Исполнитель не добавлен");
+                    uD->jira_task  = {};  /* Очистили структуру */
+                    break;
+                }
 
+                /* Добавляем нового исполнителя в БД в таблицу contractors */
                 QSqlQuery pg_query(pgDatabase);
+                pg_query.prepare("INSERT INTO contractors (id, name, link, trello_list, email) VALUES (?, ?, ?, ?, ?)");
+                pg_query.addBindValue(contractor_parts.at(0));
+                pg_query.addBindValue(contractor_parts.at(4));
+                pg_query.addBindValue(contractor_parts.at(1));
+                pg_query.addBindValue(contractor_parts.at(2));
+                pg_query.addBindValue(contractor_parts.at(3));
                 c_out << "Adding new contractor into DB from line " + message->text << std::endl;
-                pg_query.exec(ins_contractors_table);
-                pg_query.next();
-                c_out << "pgSqlexec: " << pg_query.lastError().text().toStdString() << std::endl;
+                if (!pg_query.exec())
+                {
+                    c_out << "pgSqlexec: " << pg_query.lastError().text().toStdString() << std::endl;
+                    m_tg_bot.getApi().sendMessage(message->chat->id, "Ошибка записи исполнителя в БД: " + pg_query.lastError().text().toStdString());
+                    uD->jira_task  = {};  /* Очистили структуру */
+                    break;
+                }
 
                 m_tg_bot.getApi().sendMessage(message->chat->id, "Сотрудник " + contractor_parts.at(1).toStdString() + " добвавлен в качестве исполнителя");
 
@@ -208,10 +233,11 @@ void chanserv_bot::handle_small_talk()
             case staff_set_new_msi_version:
             {
                 /* Записываем новую версию .msi в БД */
-                const QString updSettingsTable = "UPDATE settings SET value = '" + QString::fromStdString(message->text) + "' WHERE name = 'MSI_actual_version'";
                 QSqlQuery qt_query(h_msDB);
+                qt_query.prepare("UPDATE settings SET value = ? WHERE name = 'MSI_actual_version'");
+                qt_query.addBindValue(QString::fromStdString(message->text));
                 c_out << "Updating .msi version to: " + message->text << std::endl;
-                const auto r_ret = qt_query.exec(updSettingsTable);
+                const auto r_ret = qt_query.exec();
 
                 m_tg_bot.getApi().sendMessage(message->chat->id, "Версия сборки плагина актуализирована в БД до " + message->text);
 
