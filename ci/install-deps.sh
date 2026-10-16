@@ -19,7 +19,7 @@ $SUDO apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build git ca-certificates python3-venv \
     libboost-dev libboost-context-dev libboost-coroutine-dev libboost-system-dev \
     libcurl4-openssl-dev libssl-dev zlib1g-dev unixodbc-dev libicu-dev \
-    libdbus-1-3 libgl1 libxkbcommon0 libfontconfig1
+    libdbus-1-3 libglib2.0-0t64 libgl1 libxkbcommon0 libfontconfig1
 
 # Библиотека manapihttp нужна для линковки listchecker
 $SUDO apt-get install -y "$REPO_ROOT/lib/manapihttp/manapihttp-v1.0.1ubuntu24.04-dbg.deb"

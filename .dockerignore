@@ -1,0 +1,12 @@
+# Контекст сборки образа - корень репозитория (docker-img/compose.yaml)
+.git
+.github
+build/
+build-*/
+bin/
+listchecker/bin/
+listchecker/build/
+CMakeLists.txt.user*
+src/sensitive_data.h
+docker-img/*.deb
+*.gif
