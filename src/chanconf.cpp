@@ -41,7 +41,7 @@ void ChanConf::IInitializeConfig()
     catch (const toml::parse_error& e)
     {
         isValid = false;
-        c_out << "ChanConf::IInitializeConfig: Cannot parse this configuration file: " << config_file_ << " (" << e.description() << ")"
+        c_out << "ChanConf::IInitializeConfig: Cannot parse this configuration file: " << config_file_ << " (" << std::string(e.description()) << ")"
               << " Please make sure, that configuration file is set in env.variable CHANSERV_CONFIG" << std::endl;
     }
 }
