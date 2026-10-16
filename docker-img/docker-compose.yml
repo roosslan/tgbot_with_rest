@@ -3,8 +3,8 @@ services:
     env_file: 
       - ./run.env
     build:
-      context: .
-      dockerfile: ./Dockerfile
+      context: ..
+      dockerfile: docker-img/Dockerfile
     environment:
       CHANSERV_CONFIG: ${CHANSERV_CONFIG}
       CHANSERV_LOGDIR: ${CHANSERV_LOGDIR}

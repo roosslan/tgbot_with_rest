@@ -45,6 +45,14 @@ May 2026    v.21.1
 https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server \
 В Docker-образе они ставятся автоматически (docker-img/Dockerfile).
 
+### Docker
+
+Образ собирается из исходников: этап сборки ставит зависимости и Qt скриптом `ci/install-deps.sh`, собирает chanserv и listchecker и прогоняет тесты, этап запуска содержит только библиотеки, Qt (вместе с SQL-драйверами PostgreSQL и ODBC) и бинарники в `/opt/chanserv`. Контекст сборки - корень репозитория. Для сборки необходимо получить сабмодули и выполнить в директории `docker-img`:
+
+    docker compose build
+
+Конфиг (`/root/chanserv.toml`) и логи подключаются volume'ами из `compose.yaml`.
+
 ### Тесты и CI
 
 Модульные тесты (QtTest) находятся в `tests/` и собираются вместе с ботом (опция `CHANSERV_BUILD_TESTS`, по умолчанию включена). Для запуска после сборки:

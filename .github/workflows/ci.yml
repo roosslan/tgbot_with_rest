@@ -28,3 +28,22 @@ jobs:
 
       - name: Сборка и тесты
         run: bash ci/build.sh
+
+  docker:
+    name: Сборка Docker-образа
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Сборка образа (без публикации)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker-img/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
