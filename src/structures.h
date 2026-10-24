@@ -119,7 +119,7 @@ struct user_dispatcher
     std::string chat_user_tg_name;
     std::string chat_user_first_name;
 
-    std::string *created_card_id = nullptr;
+    std::string created_card_id;    /* id карточки Trello, пусто если не создана */
     std::string *created_jira_task_id = nullptr;
     new_task jira_task;
     int last_error = 0;

@@ -1,3 +1,4 @@
+#include <format>
 #include <sstream>
 #include <unicode/locid.h>
 #include <unicode/normlzr.h>
@@ -250,6 +251,12 @@ std::string escape_string(const std::string& s) noexcept
     }
 
     return result;
+}
+
+std::string format_datetime_with_offset(std::chrono::system_clock::time_point tp, const int utc_offset_hours)
+{
+    const auto shifted = std::chrono::floor<std::chrono::minutes>(tp + std::chrono::hours(utc_offset_hours));
+    return std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", shifted);
 }
 
 std::string return_current_time_and_date()

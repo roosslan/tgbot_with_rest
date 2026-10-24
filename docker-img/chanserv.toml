@@ -17,6 +17,8 @@ pguser = "chanserv"
 pgpwd = ""
 # Через сколько часов бездействия сессия юзера удаляется из памяти
 session_ttl_hours = 24
+# Смещение от UTC для дат в задачах и запросах ключей (Москва - 3)
+utc_offset_hours = 3
 
 [jira]
 # Префикс ссылки на задачу, к нему дописывается ключ задачи (TEKLA-123)
@@ -25,6 +27,10 @@ browse_url = "https://vm-srv051.local:8443/browse/"
 # http://<host>:<port_jira_webhook>/UPD/${issue.key}?token=<webhook_secret>
 # Пустое значение отключает приём вебхуков
 webhook_secret = ""
+
+[stickers]
+# Стикер в ответ на "Мои задачи", когда задач нет. Пустое значение - без стикера
+no_tasks = "CAACAgIAAxkBAAEJ-3tk1di32sT158dYv7TgeRTQIU9c1wACsBYAAg5Z6Esr859Kked7aDAE"
 
 [db_msi]
 server = "10.11.11.11"

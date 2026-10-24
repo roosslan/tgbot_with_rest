@@ -193,7 +193,7 @@ void chanserv_bot::handle_small_talk()
             case developer_run_host_command:
             {
                 std::string readFromCLI;
-                auto ps = new QProcess();
+                QProcess ps;
 
                 if (QString::fromStdString(message->text).contains(QChar::Space)) /* Есть аргументы */
                 {
@@ -202,26 +202,25 @@ void chanserv_bot::handle_small_talk()
                     const std::string all_parameters = message->text.substr(message->text.find_first_of(" \t")+1);
 
                     const QStringList arguments_list = QProcess::splitCommand(QString::fromStdString(all_parameters));
-                    ps->start(QString::fromStdString(self_the_command), arguments_list);
+                    ps.start(QString::fromStdString(self_the_command), arguments_list);
                 }
                 else
-                    ps->start(QString::fromStdString(message->text));
+                    ps.start(QString::fromStdString(message->text));
 
-                if (ps->waitForStarted(-1)) {
-                    while(ps->waitForReadyRead(-1)) {
-                        readFromCLI = ps->readAllStandardOutput();
+                if (ps.waitForStarted(-1)) {
+                    while(ps.waitForReadyRead(-1)) {
+                        readFromCLI = ps.readAllStandardOutput();
                     }
                     send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], readFromCLI, kb_developer);
                 }
                 /* Ошибка */
                 else
                 {
-                    readFromCLI = ps->readAllStandardOutput();
-                    const QString p_stderr = ps->readAllStandardError();
+                    readFromCLI = ps.readAllStandardOutput();
+                    const QString p_stderr = ps.readAllStandardError();
                     send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка выполнения команды " + p_stderr.toStdString(), kb_developer);
                 }
 
-                delete ps;
                 break;
             }
 

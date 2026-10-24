@@ -98,7 +98,7 @@ public:
     int add_img_to_card(const std::string card_id, const std::string imgPath);
     int archiving_card(const std::string& card_id);
     int change_card_color(const std::string& card_id, const std::string& color);
-    trello_string create_new_card(const std::string& list_id, std::string card_name, const std::string card_description, std::string** created_card_id);
+    trello_string create_new_card(const std::string& list_id, std::string card_name, const std::string card_description, std::string* created_card_id);
     trello_string delete_all_cards_from_archive(const std::string list_id);
     trello_vector get_board_cards(const std::string& board_id, bool force = false);
 

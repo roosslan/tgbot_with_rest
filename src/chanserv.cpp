@@ -8,6 +8,7 @@
 
 #include <regex>
 #include <stdexcept>
+#include <thread>
 
 
 using namespace TgBot;
@@ -23,136 +24,29 @@ chanserv_bot::chanserv_bot(): m_tg_bot(sett["tg_bot_token"]) /* the reverse prox
 
 /* ========= DBUS Server, связь c приложением ListChecker =============================================== */
 
-    /* Create the object that implement the adaptor */
-    //AdaptorImp* list_checker_adaptor = new AdaptorImp;
-    std::unique_ptr<AdaptorImp> list_checker_adaptor(new AdaptorImp);
+    /* Адаптер живёт в отдельном потоке со своим циклом событий: главный поток занят long poll'ом Telegram,
+     * а QtDBus доставляет вызовы в поток объекта. ServerDBus - дочерний объект адаптера и переезжает вместе с ним */
+    auto* list_checker_adaptor = new AdaptorImp;
+    new ServerDBus(list_checker_adaptor);
 
-    // Pass the object to the adaptor constructor
-    new ServerDBus(&*list_checker_adaptor);
+    m_dbus_thread = std::make_unique<QThread>();
+    m_dbus_thread->setObjectName("dbus");
+    list_checker_adaptor->moveToThread(m_dbus_thread.get());
+    QObject::connect(m_dbus_thread.get(), &QThread::finished, list_checker_adaptor, &QObject::deleteLater);
+    m_dbus_thread->start();
 
     // Register the object on the session bus
     QDBusConnection connection = QDBusConnection::sessionBus();
-    const bool ret = connection.registerService("chanserv.qdbus");
-    const auto rret = connection.registerObject("/chanserv", &*list_checker_adaptor);
-    c_out << "Chanserv: DBus адаптер для связи с приложением ListChecker зарегистрирован" << std::endl;
+    if (!connection.isConnected())
+        c_out << "Chanserv: сессионная шина DBus недоступна (" << connection.lastError().message().toStdString() << "), связь с ListChecker отключена" << std::endl;
+    else if (!connection.registerService("chanserv.qdbus") || !connection.registerObject("/chanserv", list_checker_adaptor))
+        c_out << "Chanserv: не удалось зарегистрировать DBus адаптер: " << connection.lastError().message().toStdString() << std::endl;
+    else
+        c_out << "Chanserv: DBus адаптер для связи с приложением ListChecker зарегистрирован" << std::endl;
 
 #endif
 }
 
-/*
-void chanserv_bot::tm_run_bot_api(manapi::maxbot &tm_bot, const std::string& t_bot_token)
-{
-    ChatSessions chatSessions(tm_bot, m_tg_bot.getApi(), m_context);
-    tm_bot.token(t_bot_token);
-
-    // manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
-
-    manapi::async::context::threadpoolfs(2);
-    // manapi::async::context::gbs = manapi::async::context::blockedsignals();
-
-    m_context = manapi::async::context::create(2).unwrap();
-
-    m_context->eventloop()->setup_handle_interrupt();
-
-    m_context->run(m_context, 0, [this, tm_bot, &chatSessions] (auto callbackFn) -> void {
-            std::set<size_t> states;
-
-            manapi::async::run ([&states, this, tm_bot, &chatSessions] () mutable MANAPIHTTP_NOEXCEPT
-                                -> manapi::future<> {
-
-            auto json_buttons = manapi::json {
-                  { "text", "У вас появилась новая задача" },
-                  { "attachments", manapi::json::array({
-                    {
-                         { "type", "inline_keyboard" },
-                         { "payload", {
-                              { "buttons", manapi::json::array({
-                                manapi::json::array({
-                                {
-                                   { "type", "link" },
-                                   { "text", "Открыть Jira" },
-                                   { "url", sett["jira_project_url"] }
-                                }
-                                , //2nd button
-                                {
-                                   { "type", "callback" },
-                                   { "text", "Press me!" },
-                                   { "payload", "button1 pressed" }
-                                }
-
-                                })
-                                }
-                              )}
-                            }
-                          }
-                    }
-                  })}
-                };
-
-                auto res_send = co_await tm_bot.send_message(910345284460, json_buttons);
-
-                tm_bot.on("message_created", [&states, &chatSessions](manapi::maxbot &self, manapi::json &data)
-                        -> manapi::future<bool> {
-
-                    if (!chatSessions.hasSession(data["message"]["sender"]["user_id"].as_integer())) {
-                        std::cout << "Creating new chat session for chat " << data["message"]["sender"]["user_id"].as_integer() << std::endl;
-                        chatSessions.createNewSession(data["message"]["sender"]["user_id"].as_integer());
-                    }
-
-                    auto const user_id = data["message"]["sender"]["user_id"].as_integer();
-                    auto const chat_id = data["message"]["recipient"]["chat_id"].as_integer();
-                    auto const &text = data["message"]["body"]["text"];
-
-                    chatSessions.passMessage(data["message"]["sender"]["user_id"].as_integer(), text.as_string());
-
-                    if (text.is_string() && text.as_string().starts_with("@k_o_s_m_o_s_bot"))
-                    {
-                        // is a personal addressing
-                        std::string_view const public_text{text.as_string().data() + 17, text.as_string().size() - 17};
-                        std::cout << public_text << std::endl;
-                        //if (public_text == "/start")
-                        {
-                            auto res_send = co_await self.send_message(user_id, chat_id, {
-                                                {"text", std::format("Заполнение занятости\nНачиная с 10:00 вы можете выполнить заполненение занятости!", "") }  });
-                            manapi::json response = (res_send.unwrap());
-                        }
-                    }
-                    if (!text.is_string()
-                        || !text.as_string().starts_with('/'))
-                        co_return false;
-
-                    // is a command
-                    std::string_view const cmd{text.as_string().data() + 1, text.as_string().size() - 1};
-
-                    if (cmd == "start") {
-                        auto res_send = co_await self.send_message(user_id, chat_id, { {"text", std::format("Hello, {}. You are here.\nWhat do you want to ask me?", "" )}  });
-                        manapi::json response = (res_send.unwrap());
-                    }
-                    else if (cmd == "ai enable") {
-                        states.insert(user_id);
-                    }
-                    else if (cmd == "ai disable") {
-                        states.erase(user_id);
-                    }
-                    else {
-                        auto send_res = co_await self.send_message(user_id, chat_id, { {"text", std::format("Invalid command: {}", cmd)}});
-                        manapi::json response = (send_res).unwrap();
-                    }
-
-                    co_return true;
-                });
-                tm_bot.bind(500).unwrap();
-
-            });
-
-            callbackFn();
-        }).unwrap();
-
-    manapi::clear_tools::curl_library_clear();
-    manapi::clear_tools::ev_library_clear();
-    manapi::clear_tools::ssl_library_clear();
-}
-*/
 
 void chanserv_bot::initialize_commands()
 {
@@ -200,15 +94,12 @@ int chanserv_bot::IInitializeDB()
 void chanserv_bot::initialize_tracking_apis()
 {
     c_out << "Starting APIs: Trello, Jira..." << std::endl;
-    m_trello_api = new trello_api(sett["trello_key"], sett["trello_token"], sett["trello_prefix"]);
-    m_jira_api = new jira_api(sett["jira_token"], sett["jira_base_url"], sett["jira_browse_url"], m_tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
+    m_trello_api = std::make_unique<trello_api>(sett["trello_key"], sett["trello_token"], sett["trello_prefix"]);
+    m_jira_api = std::make_unique<jira_api>(sett["jira_token"], sett["jira_base_url"], sett["jira_browse_url"], m_tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
 }
 
 void chanserv_bot::bot_start(QCoreApplication *app)
 {
-
-/*                  chatSessions = new ChatSessions(tm_bot, m_tg_bot.getApi(), m_Context); */
-// TODO: MAXBOT     chatSessions = new ChatSessions(m_tg_bot.getApi());
 
     session_dispatcher();    /* Диспетчер чат-сеансов для разделения пользователей и их "бесед" */
 
@@ -220,33 +111,33 @@ void chanserv_bot::bot_start(QCoreApplication *app)
     /* Self the message exchange */
     handle_small_talk();
 
-#ifdef Q_OS_LINUX
-    signal(SIGINT, [](int s)
-    {
-        std::cout << "ChanservBot got SIGINT!" << s << std::endl;
-        qDebug() << "LastError: " << errno << "\n";
-        exit(1);
-    });
-#endif
-
     c_out << "Bot username: " << m_tg_bot.getApi().getMe()->username.c_str() << std::endl;
 
     c_out << "Skipping all pending updates" << std::endl;
     m_tg_bot.getApi().deleteWebhook(true); /* true for dropPendingUpdates/skip msg updates */
 
-/*  in_thread tm_run_bot([this]{ tm_run_bot_api(tm_bot, sett["t_bot_token"]); });
-    c_out << "MaxBot NOT started!" << std::endl;    */
 
-    while (true)
+    /* Long poll ждёт обновлений до timeout секунд, между итерациями выполняются задачи из других потоков
+     * (вебхуки Jira, мониторинг), поэтому Telegram API и БД используются только в главном потоке */
+    TgLongPoll long_poll(m_tg_bot, 100, 5);
+    c_out << "Long poll started" << std::endl;
+    while (!stop_requested())
     {
-        TgLongPoll long_poll(m_tg_bot);
-        c_out << "Long poll started" << std::endl;
-        while (true)
+        m_main_tasks.run_pending();
+        try
         {
-            // app->processEvents();   /* we need this as QDBus won't work without it */
             long_poll.start();
         }
+        catch (const std::exception& e)
+        {
+            /* Сетевые ошибки и ошибки Telegram не должны останавливать бота */
+            c_out << "Long poll error: " << e.what() << std::endl;
+            for (int i = 0; i < 10 && !stop_requested(); ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
     }
+    m_main_tasks.run_pending();
+    c_out << "Long poll stopped" << std::endl;
     /* webhook run
     {
         try
@@ -322,8 +213,7 @@ int chanserv_bot::receive_photos(Message::Ptr message, user_dispatcher* t_uD)
 int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
 {
     m_tg_bot.getApi().sendMessage(message->chat->id, "Записано. Отправляем задачу в БД...");
-    const std::chrono::time_point time_point = std::chrono::system_clock::now() + std::chrono::hours(3);
-    const auto str_dattime  = std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", time_point);
+    const auto str_dattime = format_datetime_with_offset(std::chrono::system_clock::now(), atoi(sett["utc_offset_hours"].c_str()));
     t_uD->jira_task.creation_date = str_dattime;
 
     std::string card_description = "https://t.me/" + message->chat->username + " ";
@@ -334,7 +224,7 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
         card_description += "Категория: " + t_uD->jira_task.category + "\n";
     }
 
-    t_uD->created_card_id = nullptr;
+    t_uD->created_card_id.clear();
     /* Результат лежит в t_uD->createdCardID:    */
 
     /* Экранируем всё, что попадёт в query */
@@ -357,9 +247,8 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
             send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка создания карточки " + QString::fromLocal8Bit(e.what()).toStdString() + "\n" + card_description, *t_uD, kb_go_dashboard);
         }
 
-        /* Если карточка в Trello не создалась, created_card_id остаётся nullptr */
-        if (t_uD->created_card_id != nullptr)
-            t_uD->jira_task.id_card = *t_uD->created_card_id;
+        /* Если карточка в Trello не создалась, created_card_id остаётся пустым */
+        t_uD->jira_task.id_card = t_uD->created_card_id;
 
         try
         {
@@ -381,17 +270,13 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
         }
 
         /* Аттачим все присланные изображения в карточку Trello */
-        if (t_uD->created_card_id != nullptr)
+        if (!t_uD->created_card_id.empty())
         {
             if (!t_uD->jira_task.v_local_file_paths.empty())
                 for (int i = 0; i < t_uD->jira_task.v_local_file_paths.size(); ++i)
-                    auto ret = m_trello_api->add_img_to_card(*t_uD->created_card_id, t_uD->jira_task.v_local_file_paths[i]);
+                    auto ret = m_trello_api->add_img_to_card(t_uD->created_card_id, t_uD->jira_task.v_local_file_paths[i]);
 
-            c_out << "Карточка " << *t_uD->created_card_id << " создана." << std::endl;
-
-            /* Освобождаем память, std::string createdCardID был allocated в ф-ции trelloAPI->createNewCard() */
-            delete t_uD->created_card_id;
-            t_uD->created_card_id = nullptr;
+            c_out << "Карточка " << t_uD->created_card_id << " создана." << std::endl;
         }
 
         /* Уведомление админ.аппарата о появлениии новой задачи */
@@ -402,7 +287,8 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
 
     m_tg_bot.getApi().sendMessage(message->chat->id, "Ваша задача поступила в работу, скоро с вами свяжутся. Для нового обращения нажмите на клавиатуре /start"
                                                   ""); /* , nullptr, nullptr, kbInlineConsumer); */
-    m_tg_bot.getApi().sendSticker(message->chat->id, *select_randomly(sticker_list.begin(), sticker_list.end()));  /* randomize! */
+    if (!sticker_list.empty())
+        m_tg_bot.getApi().sendSticker(message->chat->id, *select_randomly(sticker_list.begin(), sticker_list.end()));  /* randomize! */
 
 
 
@@ -437,12 +323,6 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
         send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка создания задачи Jira " + QString::fromLocal8Bit(e.what()).toStdString() + card_description, *t_uD, kb_go_dashboard);
         t_uD->last_error = 1;
     }
-/*
-        manapi::async::context::current(m_Context);
-        manapi::async::run ( [this] () mutable -> manapi::future<> {
-            auto rret = co_await tm_bot.send_message(atol(sett["m_developer_id"].c_str()), { { "text", std::format("B Jira появилось новое обращение") } });
-         co_return; });
-*/
     /* Jira's PART ================================================================================================*/
 
 
@@ -549,8 +429,7 @@ const std::string chanserv_bot::insert_revit_key_to_db(QSqlDatabase* odb, const 
 
     /* В таблице не существует открытых запросов на разблокировку/одобрение */
     ms_query.clear();
-    std::chrono::time_point time_point = std::chrono::system_clock::now() + std::chrono::hours(3);
-    const auto str_date_time = std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", time_point);
+    const auto str_date_time = format_datetime_with_offset(std::chrono::system_clock::now(), atoi(sett["utc_offset_hours"].c_str()));
 
     const std::string generated_revit_key = generate_revit_master_key(sett["fam_otp_key"]);
     ms_query.prepare("INSERT INTO master_keys ( tg_id, master_key, requested_by, requested_at, reason, is_activated ) VALUES (?, ?, ?, ?, ?, 0)");
@@ -664,9 +543,13 @@ void chanserv_bot::qt_bg_worker(QElapsedTimer* timer)
 
 chanserv_bot::~chanserv_bot()
 {
-    h_msDB.close();
+    if (m_dbus_thread)
+    {
+        m_dbus_thread->quit();
+        m_dbus_thread->wait();
+    }
 
-    /* delete trelloAPI; */
+    h_msDB.close();
 }
 
 bool chanserv_bot::is_developer(const long id)
@@ -812,7 +695,8 @@ void chanserv_bot::get_my_issues(const long fromMessageId)
         {
             m_tg_bot.getApi().sendMessage(fromMessageId, "У вас нет активных задач\nКайфуйте 🚬🚬🚬",  /* tobacco emojis */
                                    nullptr, nullptr, kb_ganzel);
-            m_tg_bot.getApi().sendSticker(fromMessageId, "CAACAgIAAxkBAAEJ-3tk1di32sT158dYv7TgeRTQIU9c1wACsBYAAg5Z6Esr859Kked7aDAE");  /* Cillian Murphy smokes gif */
+            if (!sett["sticker_no_tasks"].empty())
+                m_tg_bot.getApi().sendSticker(fromMessageId, sett["sticker_no_tasks"]);
         }
     }
 }

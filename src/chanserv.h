@@ -7,10 +7,7 @@
 #include "jiraapi.h"
 #include "session_store.h"
 #include "access.h"
-/*
-#include "maxbotapi.h"
-#include "tm_bot.hpp"
-*/
+#include "task_queue.h"
 #include <iostream>
 
 #include <QtSql>
@@ -20,6 +17,7 @@
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QtDBus>
 #include <QHostInfo>
+#include <QThread>
 #include <tgbot/tgbot.h>
 #include <tgbot/Bot.h>
 #include <tgbot/types/InlineKeyboardMarkup.h>
@@ -33,7 +31,6 @@ class chanserv_bot : public AbstractChanserv
 {
     int create_new_issue(Message::Ptr message, user_dispatcher* t_uD);
     int receive_photos(Message::Ptr message, user_dispatcher* t_uD);
-/*  void tm_run_bot_api(manapi::maxbot &tm_bot, const std::string& t_bot_token);    */
 public:
     explicit chanserv_bot();
     /*  ChanservBot(const ChanservBot&) noexcept = default;
@@ -44,15 +41,15 @@ public:
     ~chanserv_bot();
 
     Bot m_tg_bot;    
-/*
-    manapi::maxbot tm_bot;
-    std::shared_ptr<manapi::async::context> m_context;
-    MessageQueue<std::string> msg_queue;
-    std::unordered_map<int64_t, MessageQueue<std::string>> chat_message_queues;
-    ChatSessions *chat_sessions;
-*/
-    jira_api* m_jira_api;
-    trello_api* m_trello_api;
+    /* Задачи для главного потока от потоков вебхуков и мониторинга */
+    task_queue m_main_tasks;
+    void post_task(std::function<void()> task) { m_main_tasks.post(std::move(task)); }
+
+    /* Поток с циклом событий для DBus адаптера (связь с ListChecker) */
+    std::unique_ptr<QThread> m_dbus_thread;
+
+    std::unique_ptr<jira_api> m_jira_api;
+    std::unique_ptr<trello_api> m_trello_api;
 
     /* Блок уникальных данных для каждого юзера */
     user_dispatcher* uD = nullptr;

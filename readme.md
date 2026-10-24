@@ -26,7 +26,7 @@ Mar 2026    v.20\
 Apr 2026    v.21\
 May 2026    v.21.1
 <br/>
-- C++ 20
+- C++ 23
 - CMake 3.28 (built using Qt Creator 14.0.2)
 - Qt6 (built on 6.10.1)
 - requires installed QTerminal package (except in docker container)
@@ -51,7 +51,7 @@ https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-
 
     docker compose build
 
-Конфиг (`/root/chanserv.toml`) и логи подключаются volume'ами из `compose.yaml`.
+Конфиг (`/root/chanserv.toml`) и логи подключаются volume'ами из `compose.yaml`. Процессы в контейнере запускает supervisord: сессионная шина DBus (связь chanserv и listchecker), chanserv и listchecker. По SIGTERM (`docker stop`) бот завершает работу штатно.
 
 ### Тесты и CI
 
@@ -63,7 +63,7 @@ GitHub Actions (`.github/workflows/ci.yml`) на каждый PR и push в `tru
 
 ### Конфигурация
 
-- `docker-img/chanserv.toml` — подключение к PostgreSQL, адрес Jira (`[jira] browse_url`), секрет вебхуков (`[jira] webhook_secret`), время жизни сессий (`session_ttl_hours`). Путь к файлу задаётся переменной окружения `CHANSERV_CONFIG`.
+- `docker-img/chanserv.toml` — подключение к PostgreSQL, адрес Jira (`[jira] browse_url`), секрет вебхуков (`[jira] webhook_secret`), время жизни сессий (`session_ttl_hours`), смещение от UTC для дат (`utc_offset_hours`), стикер для пустого списка задач (`[stickers] no_tasks`). Путь к файлу задаётся переменной окружения `CHANSERV_CONFIG`.
 - Таблица `settings` PostgreSQL — токены Telegram, Trello, Jira и пути к скриптам.
 - `src/sensitive_data.h.example` — шаблон для `src/sensitive_data.h`, сам файл в git не добавляется.
 - Вебхук в Jira необходимо настроить на адрес `http://<host>:<port_jira_webhook>/UPD/${issue.key}?token=<webhook_secret>`. Запросы без верного token отклоняются с кодом 403. Если `webhook_secret` пустой, приём вебхуков отключён.

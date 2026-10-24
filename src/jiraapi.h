@@ -16,6 +16,28 @@
 #include <QHttpPart>
 #include <qfileinfo.h>
 
+#include <algorithm>
+#include <cctype>
+#include <unordered_map>
+
+/* Запоминает исполнителя задачи и возвращает true, если ему ещё не отправлялось письмо по этой задаче
+ * (задача новая или исполнитель сменился). Вебхук UPD приходит на любое изменение задачи, письмо - только на назначение */
+inline bool remember_assignee(std::unordered_map<std::string, std::string>& notified, const std::string& issue_key, std::string email)
+{
+    std::transform(email.begin(), email.end(), email.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (email.empty())
+    {
+        notified.erase(issue_key);    /* исполнителя сняли - при следующем назначении письмо уйдёт снова */
+        return false;
+    }
+
+    auto [it, inserted] = notified.try_emplace(issue_key, email);
+    if (!inserted && it->second == email)
+        return false;
+    it->second = email;
+    return true;
+}
+
 class jira_api
 {
     std::string m_jira_token_;
@@ -25,6 +47,8 @@ class jira_api
     const TgBot::Api* tg_bot_api_;
     QSqlDatabase& m_pg_database_;
     std::string m_mail_sender_path_;
+    /* Кому уже отправлено письмо о задаче: ключ задачи -> e-mail исполнителя */
+    std::unordered_map<std::string, std::string> m_notified_assignee_;
 
 private slots:
     void onFinished();

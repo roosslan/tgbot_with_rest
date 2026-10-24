@@ -32,7 +32,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # им нужны только libpq5 и unixodbc
 COPY lib/manapihttp/manapihttp-v1.0.1ubuntu24.04-dbg.deb /tmp/
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl supervisor python3 mc net-tools \
+        ca-certificates curl supervisor python3 mc net-tools dbus-daemon \
         libglib2.0-0t64 libzstd1 zlib1g libdbus-1-3 \
         libboost-context1.83.0 libboost-coroutine1.83.0 libboost-system1.83.0 \
         libcurl4t64 libssl3t64 libpq5 unixodbc odbcinst libicu74 \
@@ -66,6 +66,7 @@ RUN chmod +x /home/rasa/chanserv/*.sh /home/rasa/chanserv/listchecker/*.sh
 
 ENV LD_LIBRARY_PATH="/opt/qt/lib" \
     QT_PLUGIN_PATH="/opt/qt/plugins" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=/run/chanserv-dbus.sock" \
     PATH="${PATH}:/opt/mssql-tools18/bin"
 #ENV CHANSERV_CONFIG=/root/chanserv.toml
 #ENV CHANSERV_LOGDIR=/root/logs

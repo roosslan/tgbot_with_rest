@@ -28,12 +28,12 @@ ServerDBus::~ServerDBus()
 void ServerDBus::sendTgMessage(const QString &message)
 {
     // handle method call chanserv.qdbus.sendTgMessage
-    QMetaObject::invokeMethod(parent(), "sendTgMessage", Q_ARG(QString, message));
+    QMetaObject::invokeMethod(parent(), "send_tg_message", Q_ARG(QString, message));
 }
 
 void ServerDBus::RunCommand(const QString &cmd, const QVariantMap &customdata)
 {
     // handle method call chanserv.qdbus.RunCommand
-    QMetaObject::invokeMethod(parent(), "RunCommand", Q_ARG(QString, cmd), Q_ARG(QVariantMap, customdata));
+    QMetaObject::invokeMethod(parent(), "run_command", Q_ARG(QString, cmd), Q_ARG(QVariantMap, customdata));
 }
 

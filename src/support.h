@@ -7,6 +7,8 @@
 #include <random>
 #include <iterator>
 #include <functional>
+#include <atomic>
+#include <chrono>
 #include <mutex>
 #include <deque>
 #include <tgbot/tgbot.h>
@@ -47,6 +49,8 @@ Iter select_randomly(Iter start, Iter end) {
 }
 
 std::string return_current_time_and_date();
+/* Время в формате "дд.мм.гггг чч:мм" со смещением utc_offset_hours от UTC (main.utc_offset_hours в chanserv.toml) */
+std::string format_datetime_with_offset(std::chrono::system_clock::time_point tp, int utc_offset_hours);
 
 /* совместим std::cout с qDebug() */
 class cpp_out
@@ -183,21 +187,10 @@ struct in_thread
     */
 };
 
-/* Infinite loop in separate thread */
-struct active_object
-{
-    template <typename Fn> active_object(Fn fn) : thread([this, fn] {   while(alive){ fn(); }   }) {}
-
-    ~active_object() { alive = false; thread.join(); }
-
-    active_object(const active_object&) = delete;
-    active_object(active_object&&) = delete;
-    active_object& operator= (active_object) = delete;
-
-    std::atomic<bool> alive{ true };
-    std::thread thread;
-    void terminate(){ std::terminate(); };
-};
+/* Флаг остановки процесса. request_stop() безопасно вызывать из обработчика сигнала */
+inline std::atomic<bool> g_stop_requested{ false };
+inline void request_stop() noexcept { g_stop_requested.store(true); }
+inline bool stop_requested() noexcept { return g_stop_requested.load(); }
 
 static void with_mutex(std::mutex& mutex, const std::function<void()>& func)
 {

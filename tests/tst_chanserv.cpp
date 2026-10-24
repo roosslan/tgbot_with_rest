@@ -4,8 +4,12 @@
 
 #include "access.h"
 #include "chanconf.h"
+#include "jiraapi.h"
 #include "session_store.h"
 #include "support.h"
+#include "task_queue.h"
+
+#include <thread>
 
 using namespace std::chrono_literals;
 
@@ -45,6 +49,19 @@ private slots:
     /* chanserv.toml */
     void toml_values();
     void sample_config();
+
+    /* Очередь задач главного потока */
+    void task_queue_order();
+    void task_queue_posted_during_run();
+    void task_queue_from_threads();
+
+    /* Письмо исполнителю Jira только при назначении */
+    void assignee_notified_once();
+    void assignee_changed();
+    void assignee_unassigned_and_back();
+
+    /* Дата со смещением от UTC */
+    void datetime_offset();
 };
 
 /* ===================================================================================== access.h */
@@ -313,6 +330,94 @@ void tst_chanserv::sample_config()
     QVERIFY(toml_value_as_string(tbl, "jira", "browse_url").ends_with("/"));
     QVERIFY(tbl["jira"]["webhook_secret"].is_string());
     QCOMPARE(toml_value_as_string(tbl, "main", "pgport"), std::string("5432"));
+}
+
+/* ================================================================================= task_queue.h */
+
+void tst_chanserv::task_queue_order()
+{
+    task_queue q;
+    std::vector<int> order;
+    q.post([&] { order.push_back(1); });
+    q.post([&] { order.push_back(2); });
+    q.post([&] { order.push_back(3); });
+
+    QCOMPARE(q.size(), size_t(3));
+    QCOMPARE(q.run_pending(), size_t(3));
+    QCOMPARE(order, (std::vector<int>{1, 2, 3}));
+    QCOMPARE(q.size(), size_t(0));
+    QCOMPARE(q.run_pending(), size_t(0));
+}
+
+void tst_chanserv::task_queue_posted_during_run()
+{
+    /* Задача, поставленная во время выполнения, ждёт следующего вызова run_pending() */
+    task_queue q;
+    int runs = 0;
+    q.post([&] { ++runs; q.post([&] { ++runs; }); });
+
+    QCOMPARE(q.run_pending(), size_t(1));
+    QCOMPARE(runs, 1);
+    QCOMPARE(q.run_pending(), size_t(1));
+    QCOMPARE(runs, 2);
+}
+
+void tst_chanserv::task_queue_from_threads()
+{
+    task_queue q;
+    std::atomic<int> sum{0};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t)
+        threads.emplace_back([&] { for (int i = 0; i < 250; ++i) q.post([&] { sum += 1; }); });
+    for (auto& th : threads)
+        th.join();
+
+    QCOMPARE(q.run_pending(), size_t(1000));
+    QCOMPARE(sum.load(), 1000);
+}
+
+/* ===================================================================== remember_assignee (jiraapi.h) */
+
+void tst_chanserv::assignee_notified_once()
+{
+    std::unordered_map<std::string, std::string> notified;
+    QVERIFY(remember_assignee(notified, "TEKLA-1", "oleg@example.ru"));
+    /* Повторные вебхуки UPD (комментарий, вложение, смена статуса) письма не вызывают */
+    QVERIFY(!remember_assignee(notified, "TEKLA-1", "oleg@example.ru"));
+    QVERIFY(!remember_assignee(notified, "TEKLA-1", "Oleg@Example.RU"));
+    /* Другая задача - отдельное письмо */
+    QVERIFY(remember_assignee(notified, "TEKLA-2", "oleg@example.ru"));
+}
+
+void tst_chanserv::assignee_changed()
+{
+    std::unordered_map<std::string, std::string> notified;
+    QVERIFY(remember_assignee(notified, "USERTASKS-5", "a@example.ru"));
+    QVERIFY(remember_assignee(notified, "USERTASKS-5", "b@example.ru"));
+    QVERIFY(!remember_assignee(notified, "USERTASKS-5", "b@example.ru"));
+    QVERIFY(remember_assignee(notified, "USERTASKS-5", "a@example.ru"));
+}
+
+void tst_chanserv::assignee_unassigned_and_back()
+{
+    std::unordered_map<std::string, std::string> notified;
+    QVERIFY(remember_assignee(notified, "TEKLA-7", "a@example.ru"));
+    QVERIFY(!remember_assignee(notified, "TEKLA-7", ""));          /* исполнителя сняли */
+    QCOMPARE(notified.count("TEKLA-7"), size_t(0));
+    QVERIFY(remember_assignee(notified, "TEKLA-7", "a@example.ru")); /* назначили снова - письмо уходит */
+}
+
+/* =========================================================================== format_datetime_with_offset */
+
+void tst_chanserv::datetime_offset()
+{
+    using namespace std::chrono;
+    /* 2026-01-31 22:30:45 UTC */
+    const system_clock::time_point tp = sys_days{year{2026} / January / 31} + 22h + 30min + 45s;
+
+    QCOMPARE(QString::fromStdString(format_datetime_with_offset(tp, 0)), QString("31.01.2026 22:30"));
+    QCOMPARE(QString::fromStdString(format_datetime_with_offset(tp, 3)), QString("01.02.2026 01:30"));
+    QCOMPARE(QString::fromStdString(format_datetime_with_offset(tp, -5)), QString("31.01.2026 17:30"));
 }
 
 QTEST_GUILESS_MAIN(tst_chanserv)

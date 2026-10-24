@@ -16,7 +16,10 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 endif()
 
-set(CMAKE_BUILD_TYPE Debug)
+# Тип сборки по умолчанию, если не задан явно (-DCMAKE_BUILD_TYPE=Release и т.п.)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Тип сборки" FORCE)
+endif()
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
