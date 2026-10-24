@@ -54,9 +54,9 @@ std::string ChanConf::conf_value(std::string_view section, std::string_view key,
 std::string toml_value_as_string(const toml::table& tbl, std::string_view section, std::string_view key, const std::string& default_value)
 {
     const auto node = tbl[section][key];
-    if (const auto str = node.value<std::string>())
+    if (const auto str = node.value_exact<std::string>())
         return *str;
-    if (const auto num = node.value<int64_t>())
+    if (const auto num = node.value_exact<int64_t>())
         return std::to_string(*num);
     return default_value;
 }
