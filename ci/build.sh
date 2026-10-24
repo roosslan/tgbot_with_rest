@@ -14,11 +14,11 @@ export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 echo "=== chanserv ==="
 cmake -S "$REPO_ROOT" -B "$BUILD_DIR/chanserv" -G Ninja -DCMAKE_PREFIX_PATH="$QT_PREFIX"
-cmake --build "$BUILD_DIR/chanserv"
+cmake --build "$BUILD_DIR/chanserv" -- -k 0
 
 echo "=== tests ==="
 ctest --test-dir "$BUILD_DIR/chanserv" --output-on-failure
 
 echo "=== listchecker ==="
 cmake -S "$REPO_ROOT/listchecker" -B "$BUILD_DIR/listchecker" -G Ninja -DCMAKE_PREFIX_PATH="$QT_PREFIX"
-cmake --build "$BUILD_DIR/listchecker"
+cmake --build "$BUILD_DIR/listchecker" -- -k 0
