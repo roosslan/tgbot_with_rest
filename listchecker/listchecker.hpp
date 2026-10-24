@@ -19,7 +19,6 @@
 class list_checker final : public AbstractChanserv
 {
     std::vector<std::string> v_id_cards_;
-    std::vector<std::string> v_card_ids_to_delete_;
     std::vector<std::string> v_cards_to_delete_;
     InlineKeyboardMarkup::Ptr kb_go_dashboard_;
 
@@ -32,7 +31,7 @@ class list_checker final : public AbstractChanserv
     void process_every_card(QSqlQuery* pg_query);
 
     /* Добавляем исполнителя в таблице БД "issues" */
-    void assign_contractor_to_card(const std::string& sql_query, const std::string& card_id, contractor* p_contractor);
+    void assign_contractor_to_card(const std::string& card_id, contractor* p_contractor);
 
     /* Обработка карточки, если она перемещена в колонку 'Задачу удалить. Заказчик, пересоздай!' */
     void rework_card_and_notify(const std::string& card_id, int card_index);
@@ -44,7 +43,8 @@ class list_checker final : public AbstractChanserv
     void sync_n_manage_contractors_and_cards(const std::string card_id, std::string trello_card_list_id, int card_index);
 
     /* Подготовка к переезду на PostgreSQL */
-    void checks_bootstrap(QElapsedTimer* timer);
+    /* Загружает id карточек из БД, false если список пуст */
+    bool checks_bootstrap(QElapsedTimer* timer);
     void delete_cards(QSqlQuery* pg_query);
 
 public:
