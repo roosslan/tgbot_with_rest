@@ -23,6 +23,8 @@ ChanConf::ChanConf()
     sett["jira_browse_url"]     = conf_value("jira", "browse_url");
     sett["jira_webhook_secret"] = conf_value("jira", "webhook_secret");
     sett["session_ttl_hours"]   = conf_value("main", "session_ttl_hours", "24");
+    sett["utc_offset_hours"]    = conf_value("main", "utc_offset_hours", "3");
+    sett["sticker_no_tasks"]    = conf_value("stickers", "no_tasks");
 }
 
 bool ChanConf::is_valid() const

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Сборка chanserv, listchecker и запуск тестов.
-# Переменные: QT_VERSION (по умолчанию 6.10.1), QT_ROOT (по умолчанию $HOME/Qt), BUILD_DIR (по умолчанию build)
+# Переменные: QT_VERSION (по умолчанию 6.10.1), QT_ROOT (по умолчанию $HOME/Qt), BUILD_DIR (по умолчанию build),
+# BUILD_TYPE (по умолчанию Release)
 set -euo pipefail
 
 QT_VERSION="${QT_VERSION:-6.10.1}"
@@ -13,12 +14,12 @@ export QT_QPA_PLATFORM=offscreen
 export LD_LIBRARY_PATH="$QT_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 echo "=== chanserv ==="
-cmake -S "$REPO_ROOT" -B "$BUILD_DIR/chanserv" -G Ninja -DCMAKE_PREFIX_PATH="$QT_PREFIX"
+cmake -S "$REPO_ROOT" -B "$BUILD_DIR/chanserv" -G Ninja -DCMAKE_BUILD_TYPE="${BUILD_TYPE:-Release}" -DCMAKE_PREFIX_PATH="$QT_PREFIX"
 cmake --build "$BUILD_DIR/chanserv" -- -k 0
 
 echo "=== tests ==="
 ctest --test-dir "$BUILD_DIR/chanserv" --output-on-failure
 
 echo "=== listchecker ==="
-cmake -S "$REPO_ROOT/listchecker" -B "$BUILD_DIR/listchecker" -G Ninja -DCMAKE_PREFIX_PATH="$QT_PREFIX"
+cmake -S "$REPO_ROOT/listchecker" -B "$BUILD_DIR/listchecker" -G Ninja -DCMAKE_BUILD_TYPE="${BUILD_TYPE:-Release}" -DCMAKE_PREFIX_PATH="$QT_PREFIX"
 cmake --build "$BUILD_DIR/listchecker" -- -k 0

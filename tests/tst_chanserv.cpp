@@ -59,6 +59,9 @@ private slots:
     void assignee_notified_once();
     void assignee_changed();
     void assignee_unassigned_and_back();
+
+    /* Дата со смещением от UTC */
+    void datetime_offset();
 };
 
 /* ===================================================================================== access.h */
@@ -403,5 +406,19 @@ void tst_chanserv::assignee_unassigned_and_back()
     QCOMPARE(notified.count("TEKLA-7"), size_t(0));
     QVERIFY(remember_assignee(notified, "TEKLA-7", "a@example.ru")); /* назначили снова - письмо уходит */
 }
+
+/* =========================================================================== format_datetime_with_offset */
+
+void tst_chanserv::datetime_offset()
+{
+    using namespace std::chrono;
+    /* 2026-01-31 22:30:45 UTC */
+    const system_clock::time_point tp = sys_days{year{2026} / January / 31} + 22h + 30min + 45s;
+
+    QCOMPARE(QString::fromStdString(format_datetime_with_offset(tp, 0)), QString("31.01.2026 22:30"));
+    QCOMPARE(QString::fromStdString(format_datetime_with_offset(tp, 3)), QString("01.02.2026 01:30"));
+    QCOMPARE(QString::fromStdString(format_datetime_with_offset(tp, -5)), QString("31.01.2026 17:30"));
+}
+
 QTEST_GUILESS_MAIN(tst_chanserv)
 #include "tst_chanserv.moc"

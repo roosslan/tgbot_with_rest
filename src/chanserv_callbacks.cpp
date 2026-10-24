@@ -37,7 +37,7 @@ void chanserv_bot::on_callback_query()
                             if (new_master_key == "")
                                 send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка генерации мастер ключа Revit для " + itoa(requester_id));
                             else {
-                                m_tg_bot.getApi().sendMessage(requester_id, "Ваш запрос ключа для Revit одобрен. Ключ ```" + new_master_key + "```",
+                                m_tg_bot.getApi().sendMessage(requester_id, "Ваш запрос ключа для Revit одобрен. Ключ <code>" + QString::fromStdString(new_master_key).toHtmlEscaped().toStdString() + "</code>",
                                                          nullptr, nullptr, kb_ganzel, "HTML");
                                 in_thread notify_staff([this, query]{ send_msg_to_staff(m_tg_bot.getApi(), v_staff,  "Тов. " + query->from->firstName + " (" +
                                                         query->from->username + ") одобрил запрос от " + uD->jira_task.consumer_name); });                            

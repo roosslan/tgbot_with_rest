@@ -8,6 +8,7 @@
 #include <iterator>
 #include <functional>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <deque>
 #include <tgbot/tgbot.h>
@@ -48,6 +49,8 @@ Iter select_randomly(Iter start, Iter end) {
 }
 
 std::string return_current_time_and_date();
+/* Время в формате "дд.мм.гггг чч:мм" со смещением utc_offset_hours от UTC (main.utc_offset_hours в chanserv.toml) */
+std::string format_datetime_with_offset(std::chrono::system_clock::time_point tp, int utc_offset_hours);
 
 /* совместим std::cout с qDebug() */
 class cpp_out

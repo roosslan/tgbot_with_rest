@@ -332,8 +332,7 @@ int chanserv_bot::receive_photos(Message::Ptr message, user_dispatcher* t_uD)
 int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
 {
     m_tg_bot.getApi().sendMessage(message->chat->id, "Записано. Отправляем задачу в БД...");
-    const std::chrono::time_point time_point = std::chrono::system_clock::now() + std::chrono::hours(3);
-    const auto str_dattime  = std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", time_point);
+    const auto str_dattime = format_datetime_with_offset(std::chrono::system_clock::now(), atoi(sett["utc_offset_hours"].c_str()));
     t_uD->jira_task.creation_date = str_dattime;
 
     std::string card_description = "https://t.me/" + message->chat->username + " ";
@@ -407,7 +406,8 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
 
     m_tg_bot.getApi().sendMessage(message->chat->id, "Ваша задача поступила в работу, скоро с вами свяжутся. Для нового обращения нажмите на клавиатуре /start"
                                                   ""); /* , nullptr, nullptr, kbInlineConsumer); */
-    m_tg_bot.getApi().sendSticker(message->chat->id, *select_randomly(sticker_list.begin(), sticker_list.end()));  /* randomize! */
+    if (!sticker_list.empty())
+        m_tg_bot.getApi().sendSticker(message->chat->id, *select_randomly(sticker_list.begin(), sticker_list.end()));  /* randomize! */
 
 
 
@@ -554,8 +554,7 @@ const std::string chanserv_bot::insert_revit_key_to_db(QSqlDatabase* odb, const 
 
     /* В таблице не существует открытых запросов на разблокировку/одобрение */
     ms_query.clear();
-    std::chrono::time_point time_point = std::chrono::system_clock::now() + std::chrono::hours(3);
-    const auto str_date_time = std::format(std::locale::classic(), "{:%d.%m.%Y %H:%M}", time_point);
+    const auto str_date_time = format_datetime_with_offset(std::chrono::system_clock::now(), atoi(sett["utc_offset_hours"].c_str()));
 
     const std::string generated_revit_key = generate_revit_master_key(sett["fam_otp_key"]);
     ms_query.prepare("INSERT INTO master_keys ( tg_id, master_key, requested_by, requested_at, reason, is_activated ) VALUES (?, ?, ?, ?, ?, 0)");
@@ -821,7 +820,8 @@ void chanserv_bot::get_my_issues(const long fromMessageId)
         {
             m_tg_bot.getApi().sendMessage(fromMessageId, "У вас нет активных задач\nКайфуйте 🚬🚬🚬",  /* tobacco emojis */
                                    nullptr, nullptr, kb_ganzel);
-            m_tg_bot.getApi().sendSticker(fromMessageId, "CAACAgIAAxkBAAEJ-3tk1di32sT158dYv7TgeRTQIU9c1wACsBYAAg5Z6Esr859Kked7aDAE");  /* Cillian Murphy smokes gif */
+            if (!sett["sticker_no_tasks"].empty())
+                m_tg_bot.getApi().sendSticker(fromMessageId, sett["sticker_no_tasks"]);
         }
     }
 }
