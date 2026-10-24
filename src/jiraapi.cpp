@@ -321,9 +321,14 @@ int jira_api::get_task_info(const std::string& issue_key)
             std::stringstream ss;
             ss << json_resp;
             boost::property_tree::read_json(ss, pt);
-            assignee_email = pt.get_child("fields.assignee").find("emailAddress")->second.get_value("emailAddress");
+            /* Если исполнитель не назначен (assignee: null), поля emailAddress нет - получаем пустую строку */
+            assignee_email = pt.get<std::string>("fields.assignee.emailAddress", "");
 
-            if (!assignee_email.empty())
+            if (!remember_assignee(m_notified_assignee_, issue_key, assignee_email))
+            {
+                c_out << "get_task_info " << issue_key << ": исполнитель не изменился, письмо не отправляется" << std::endl;
+            }
+            else
             {
                 QSqlQuery pg_query(m_pg_database_);
                 pg_query.prepare("SELECT id FROM contractors WHERE email = ?");

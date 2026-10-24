@@ -4,6 +4,7 @@
 
 #include "access.h"
 #include "chanconf.h"
+#include "jiraapi.h"
 #include "session_store.h"
 #include "support.h"
 #include "task_queue.h"
@@ -53,6 +54,11 @@ private slots:
     void task_queue_order();
     void task_queue_posted_during_run();
     void task_queue_from_threads();
+
+    /* Письмо исполнителю Jira только при назначении */
+    void assignee_notified_once();
+    void assignee_changed();
+    void assignee_unassigned_and_back();
 };
 
 /* ===================================================================================== access.h */
@@ -365,6 +371,37 @@ void tst_chanserv::task_queue_from_threads()
 
     QCOMPARE(q.run_pending(), size_t(1000));
     QCOMPARE(sum.load(), 1000);
+}
+
+/* ===================================================================== remember_assignee (jiraapi.h) */
+
+void tst_chanserv::assignee_notified_once()
+{
+    std::unordered_map<std::string, std::string> notified;
+    QVERIFY(remember_assignee(notified, "TEKLA-1", "oleg@example.ru"));
+    /* Повторные вебхуки UPD (комментарий, вложение, смена статуса) письма не вызывают */
+    QVERIFY(!remember_assignee(notified, "TEKLA-1", "oleg@example.ru"));
+    QVERIFY(!remember_assignee(notified, "TEKLA-1", "Oleg@Example.RU"));
+    /* Другая задача - отдельное письмо */
+    QVERIFY(remember_assignee(notified, "TEKLA-2", "oleg@example.ru"));
+}
+
+void tst_chanserv::assignee_changed()
+{
+    std::unordered_map<std::string, std::string> notified;
+    QVERIFY(remember_assignee(notified, "USERTASKS-5", "a@example.ru"));
+    QVERIFY(remember_assignee(notified, "USERTASKS-5", "b@example.ru"));
+    QVERIFY(!remember_assignee(notified, "USERTASKS-5", "b@example.ru"));
+    QVERIFY(remember_assignee(notified, "USERTASKS-5", "a@example.ru"));
+}
+
+void tst_chanserv::assignee_unassigned_and_back()
+{
+    std::unordered_map<std::string, std::string> notified;
+    QVERIFY(remember_assignee(notified, "TEKLA-7", "a@example.ru"));
+    QVERIFY(!remember_assignee(notified, "TEKLA-7", ""));          /* исполнителя сняли */
+    QCOMPARE(notified.count("TEKLA-7"), size_t(0));
+    QVERIFY(remember_assignee(notified, "TEKLA-7", "a@example.ru")); /* назначили снова - письмо уходит */
 }
 QTEST_GUILESS_MAIN(tst_chanserv)
 #include "tst_chanserv.moc"
