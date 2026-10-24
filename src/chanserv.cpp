@@ -47,120 +47,6 @@ chanserv_bot::chanserv_bot(): m_tg_bot(sett["tg_bot_token"]) /* the reverse prox
 #endif
 }
 
-/*
-void chanserv_bot::tm_run_bot_api(manapi::maxbot &tm_bot, const std::string& t_bot_token)
-{
-    ChatSessions chatSessions(tm_bot, m_tg_bot.getApi(), m_context);
-    tm_bot.token(t_bot_token);
-
-    // manapi::init_tools::log_trace_init(manapi::debug::LOG_TRACE_LOW);
-
-    manapi::async::context::threadpoolfs(2);
-    // manapi::async::context::gbs = manapi::async::context::blockedsignals();
-
-    m_context = manapi::async::context::create(2).unwrap();
-
-    m_context->eventloop()->setup_handle_interrupt();
-
-    m_context->run(m_context, 0, [this, tm_bot, &chatSessions] (auto callbackFn) -> void {
-            std::set<size_t> states;
-
-            manapi::async::run ([&states, this, tm_bot, &chatSessions] () mutable MANAPIHTTP_NOEXCEPT
-                                -> manapi::future<> {
-
-            auto json_buttons = manapi::json {
-                  { "text", "У вас появилась новая задача" },
-                  { "attachments", manapi::json::array({
-                    {
-                         { "type", "inline_keyboard" },
-                         { "payload", {
-                              { "buttons", manapi::json::array({
-                                manapi::json::array({
-                                {
-                                   { "type", "link" },
-                                   { "text", "Открыть Jira" },
-                                   { "url", sett["jira_project_url"] }
-                                }
-                                , //2nd button
-                                {
-                                   { "type", "callback" },
-                                   { "text", "Press me!" },
-                                   { "payload", "button1 pressed" }
-                                }
-
-                                })
-                                }
-                              )}
-                            }
-                          }
-                    }
-                  })}
-                };
-
-                auto res_send = co_await tm_bot.send_message(910345284460, json_buttons);
-
-                tm_bot.on("message_created", [&states, &chatSessions](manapi::maxbot &self, manapi::json &data)
-                        -> manapi::future<bool> {
-
-                    if (!chatSessions.hasSession(data["message"]["sender"]["user_id"].as_integer())) {
-                        std::cout << "Creating new chat session for chat " << data["message"]["sender"]["user_id"].as_integer() << std::endl;
-                        chatSessions.createNewSession(data["message"]["sender"]["user_id"].as_integer());
-                    }
-
-                    auto const user_id = data["message"]["sender"]["user_id"].as_integer();
-                    auto const chat_id = data["message"]["recipient"]["chat_id"].as_integer();
-                    auto const &text = data["message"]["body"]["text"];
-
-                    chatSessions.passMessage(data["message"]["sender"]["user_id"].as_integer(), text.as_string());
-
-                    if (text.is_string() && text.as_string().starts_with("@k_o_s_m_o_s_bot"))
-                    {
-                        // is a personal addressing
-                        std::string_view const public_text{text.as_string().data() + 17, text.as_string().size() - 17};
-                        std::cout << public_text << std::endl;
-                        //if (public_text == "/start")
-                        {
-                            auto res_send = co_await self.send_message(user_id, chat_id, {
-                                                {"text", std::format("Заполнение занятости\nНачиная с 10:00 вы можете выполнить заполненение занятости!", "") }  });
-                            manapi::json response = (res_send.unwrap());
-                        }
-                    }
-                    if (!text.is_string()
-                        || !text.as_string().starts_with('/'))
-                        co_return false;
-
-                    // is a command
-                    std::string_view const cmd{text.as_string().data() + 1, text.as_string().size() - 1};
-
-                    if (cmd == "start") {
-                        auto res_send = co_await self.send_message(user_id, chat_id, { {"text", std::format("Hello, {}. You are here.\nWhat do you want to ask me?", "" )}  });
-                        manapi::json response = (res_send.unwrap());
-                    }
-                    else if (cmd == "ai enable") {
-                        states.insert(user_id);
-                    }
-                    else if (cmd == "ai disable") {
-                        states.erase(user_id);
-                    }
-                    else {
-                        auto send_res = co_await self.send_message(user_id, chat_id, { {"text", std::format("Invalid command: {}", cmd)}});
-                        manapi::json response = (send_res).unwrap();
-                    }
-
-                    co_return true;
-                });
-                tm_bot.bind(500).unwrap();
-
-            });
-
-            callbackFn();
-        }).unwrap();
-
-    manapi::clear_tools::curl_library_clear();
-    manapi::clear_tools::ev_library_clear();
-    manapi::clear_tools::ssl_library_clear();
-}
-*/
 
 void chanserv_bot::initialize_commands()
 {
@@ -215,9 +101,6 @@ void chanserv_bot::initialize_tracking_apis()
 void chanserv_bot::bot_start(QCoreApplication *app)
 {
 
-/*                  chatSessions = new ChatSessions(tm_bot, m_tg_bot.getApi(), m_Context); */
-// TODO: MAXBOT     chatSessions = new ChatSessions(m_tg_bot.getApi());
-
     session_dispatcher();    /* Диспетчер чат-сеансов для разделения пользователей и их "бесед" */
 
     /* Handler for "help", "start" commands */
@@ -233,8 +116,6 @@ void chanserv_bot::bot_start(QCoreApplication *app)
     c_out << "Skipping all pending updates" << std::endl;
     m_tg_bot.getApi().deleteWebhook(true); /* true for dropPendingUpdates/skip msg updates */
 
-/*  in_thread tm_run_bot([this]{ tm_run_bot_api(tm_bot, sett["t_bot_token"]); });
-    c_out << "MaxBot NOT started!" << std::endl;    */
 
     /* Long poll ждёт обновлений до timeout секунд, между итерациями выполняются задачи из других потоков
      * (вебхуки Jira, мониторинг), поэтому Telegram API и БД используются только в главном потоке */
@@ -442,12 +323,6 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
         send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка создания задачи Jira " + QString::fromLocal8Bit(e.what()).toStdString() + card_description, *t_uD, kb_go_dashboard);
         t_uD->last_error = 1;
     }
-/*
-        manapi::async::context::current(m_Context);
-        manapi::async::run ( [this] () mutable -> manapi::future<> {
-            auto rret = co_await tm_bot.send_message(atol(sett["m_developer_id"].c_str()), { { "text", std::format("B Jira появилось новое обращение") } });
-         co_return; });
-*/
     /* Jira's PART ================================================================================================*/
 
 
