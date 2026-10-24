@@ -70,6 +70,7 @@ add_library(chanserv_core STATIC
     src/serverdbus.cpp
     src/serverdbus.h
     src/session_store.h
+    src/task_queue.h
     src/structures.h
     src/support.cpp
     src/support.h

@@ -11,6 +11,7 @@
 #include "maxbotapi.h"
 #include "tm_bot.hpp"
 */
+#include "task_queue.h"
 #include <iostream>
 
 #include <QtSql>
@@ -52,6 +53,10 @@ public:
     std::unordered_map<int64_t, MessageQueue<std::string>> chat_message_queues;
     ChatSessions *chat_sessions;
 */
+    /* Задачи для главного потока от потоков вебхуков и мониторинга */
+    task_queue m_main_tasks;
+    void post_task(std::function<void()> task) { m_main_tasks.post(std::move(task)); }
+
     /* Поток с циклом событий для DBus адаптера (связь с ListChecker) */
     std::unique_ptr<QThread> m_dbus_thread;
 

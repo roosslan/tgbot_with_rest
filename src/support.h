@@ -7,6 +7,7 @@
 #include <random>
 #include <iterator>
 #include <functional>
+#include <atomic>
 #include <mutex>
 #include <deque>
 #include <tgbot/tgbot.h>
@@ -183,21 +184,10 @@ struct in_thread
     */
 };
 
-/* Infinite loop in separate thread */
-struct active_object
-{
-    template <typename Fn> active_object(Fn fn) : thread([this, fn] {   while(alive){ fn(); }   }) {}
-
-    ~active_object() { alive = false; thread.join(); }
-
-    active_object(const active_object&) = delete;
-    active_object(active_object&&) = delete;
-    active_object& operator= (active_object) = delete;
-
-    std::atomic<bool> alive{ true };
-    std::thread thread;
-    void terminate(){ std::terminate(); };
-};
+/* Флаг остановки процесса. request_stop() безопасно вызывать из обработчика сигнала */
+inline std::atomic<bool> g_stop_requested{ false };
+inline void request_stop() noexcept { g_stop_requested.store(true); }
+inline bool stop_requested() noexcept { return g_stop_requested.load(); }
 
 static void with_mutex(std::mutex& mutex, const std::function<void()>& func)
 {

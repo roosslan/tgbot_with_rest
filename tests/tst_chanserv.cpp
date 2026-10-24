@@ -6,6 +6,9 @@
 #include "chanconf.h"
 #include "session_store.h"
 #include "support.h"
+#include "task_queue.h"
+
+#include <thread>
 
 using namespace std::chrono_literals;
 
@@ -45,6 +48,11 @@ private slots:
     /* chanserv.toml */
     void toml_values();
     void sample_config();
+
+    /* Очередь задач главного потока */
+    void task_queue_order();
+    void task_queue_posted_during_run();
+    void task_queue_from_threads();
 };
 
 /* ===================================================================================== access.h */
@@ -315,5 +323,48 @@ void tst_chanserv::sample_config()
     QCOMPARE(toml_value_as_string(tbl, "main", "pgport"), std::string("5432"));
 }
 
+/* ================================================================================= task_queue.h */
+
+void tst_chanserv::task_queue_order()
+{
+    task_queue q;
+    std::vector<int> order;
+    q.post([&] { order.push_back(1); });
+    q.post([&] { order.push_back(2); });
+    q.post([&] { order.push_back(3); });
+
+    QCOMPARE(q.size(), size_t(3));
+    QCOMPARE(q.run_pending(), size_t(3));
+    QCOMPARE(order, (std::vector<int>{1, 2, 3}));
+    QCOMPARE(q.size(), size_t(0));
+    QCOMPARE(q.run_pending(), size_t(0));
+}
+
+void tst_chanserv::task_queue_posted_during_run()
+{
+    /* Задача, поставленная во время выполнения, ждёт следующего вызова run_pending() */
+    task_queue q;
+    int runs = 0;
+    q.post([&] { ++runs; q.post([&] { ++runs; }); });
+
+    QCOMPARE(q.run_pending(), size_t(1));
+    QCOMPARE(runs, 1);
+    QCOMPARE(q.run_pending(), size_t(1));
+    QCOMPARE(runs, 2);
+}
+
+void tst_chanserv::task_queue_from_threads()
+{
+    task_queue q;
+    std::atomic<int> sum{0};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t)
+        threads.emplace_back([&] { for (int i = 0; i < 250; ++i) q.post([&] { sum += 1; }); });
+    for (auto& th : threads)
+        th.join();
+
+    QCOMPARE(q.run_pending(), size_t(1000));
+    QCOMPARE(sum.load(), 1000);
+}
 QTEST_GUILESS_MAIN(tst_chanserv)
 #include "tst_chanserv.moc"

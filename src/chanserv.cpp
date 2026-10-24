@@ -8,6 +8,7 @@
 
 #include <regex>
 #include <stdexcept>
+#include <thread>
 
 
 using namespace TgBot;
@@ -227,15 +228,6 @@ void chanserv_bot::bot_start(QCoreApplication *app)
     /* Self the message exchange */
     handle_small_talk();
 
-#ifdef Q_OS_LINUX
-    signal(SIGINT, [](int s)
-    {
-        std::cout << "ChanservBot got SIGINT!" << s << std::endl;
-        qDebug() << "LastError: " << errno << "\n";
-        exit(1);
-    });
-#endif
-
     c_out << "Bot username: " << m_tg_bot.getApi().getMe()->username.c_str() << std::endl;
 
     c_out << "Skipping all pending updates" << std::endl;
@@ -244,16 +236,27 @@ void chanserv_bot::bot_start(QCoreApplication *app)
 /*  in_thread tm_run_bot([this]{ tm_run_bot_api(tm_bot, sett["t_bot_token"]); });
     c_out << "MaxBot NOT started!" << std::endl;    */
 
-    while (true)
+    /* Long poll ждёт обновлений до timeout секунд, между итерациями выполняются задачи из других потоков
+     * (вебхуки Jira, мониторинг), поэтому Telegram API и БД используются только в главном потоке */
+    TgLongPoll long_poll(m_tg_bot, 100, 5);
+    c_out << "Long poll started" << std::endl;
+    while (!stop_requested())
     {
-        TgLongPoll long_poll(m_tg_bot);
-        c_out << "Long poll started" << std::endl;
-        while (true)
+        m_main_tasks.run_pending();
+        try
         {
-            // app->processEvents();   /* we need this as QDBus won't work without it */
             long_poll.start();
         }
+        catch (const std::exception& e)
+        {
+            /* Сетевые ошибки и ошибки Telegram не должны останавливать бота */
+            c_out << "Long poll error: " << e.what() << std::endl;
+            for (int i = 0; i < 10 && !stop_requested(); ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
     }
+    m_main_tasks.run_pending();
+    c_out << "Long poll stopped" << std::endl;
     /* webhook run
     {
         try
