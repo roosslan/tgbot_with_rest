@@ -20,6 +20,7 @@
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QtDBus>
 #include <QHostInfo>
+#include <QThread>
 #include <tgbot/tgbot.h>
 #include <tgbot/Bot.h>
 #include <tgbot/types/InlineKeyboardMarkup.h>
@@ -51,6 +52,9 @@ public:
     std::unordered_map<int64_t, MessageQueue<std::string>> chat_message_queues;
     ChatSessions *chat_sessions;
 */
+    /* Поток с циклом событий для DBus адаптера (связь с ListChecker) */
+    std::unique_ptr<QThread> m_dbus_thread;
+
     jira_api* m_jira_api;
     trello_api* m_trello_api;
 

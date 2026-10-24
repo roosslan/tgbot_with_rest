@@ -11,5 +11,7 @@ void AdaptorImp::send_tg_message(const QString &message)
 
 void AdaptorImp::run_command(const QString &cmd, const QVariantMap &customdata)
 {
-    qDebug("We need to restart the ListChecker!");
+    /* Команду не выполняем: ListChecker перезапускает supervisord, а выполнение произвольной команды по DBus небезопасно */
+    Q_UNUSED(customdata);
+    std::cout << return_current_time_and_date() << ": ListChecker запросил перезапуск (" << cmd.toStdString() << ")" << std::endl;
 }

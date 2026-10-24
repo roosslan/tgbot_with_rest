@@ -23,18 +23,25 @@ chanserv_bot::chanserv_bot(): m_tg_bot(sett["tg_bot_token"]) /* the reverse prox
 
 /* ========= DBUS Server, связь c приложением ListChecker =============================================== */
 
-    /* Create the object that implement the adaptor */
-    //AdaptorImp* list_checker_adaptor = new AdaptorImp;
-    std::unique_ptr<AdaptorImp> list_checker_adaptor(new AdaptorImp);
+    /* Адаптер живёт в отдельном потоке со своим циклом событий: главный поток занят long poll'ом Telegram,
+     * а QtDBus доставляет вызовы в поток объекта. ServerDBus - дочерний объект адаптера и переезжает вместе с ним */
+    auto* list_checker_adaptor = new AdaptorImp;
+    new ServerDBus(list_checker_adaptor);
 
-    // Pass the object to the adaptor constructor
-    new ServerDBus(&*list_checker_adaptor);
+    m_dbus_thread = std::make_unique<QThread>();
+    m_dbus_thread->setObjectName("dbus");
+    list_checker_adaptor->moveToThread(m_dbus_thread.get());
+    QObject::connect(m_dbus_thread.get(), &QThread::finished, list_checker_adaptor, &QObject::deleteLater);
+    m_dbus_thread->start();
 
     // Register the object on the session bus
     QDBusConnection connection = QDBusConnection::sessionBus();
-    const bool ret = connection.registerService("chanserv.qdbus");
-    const auto rret = connection.registerObject("/chanserv", &*list_checker_adaptor);
-    c_out << "Chanserv: DBus адаптер для связи с приложением ListChecker зарегистрирован" << std::endl;
+    if (!connection.isConnected())
+        c_out << "Chanserv: сессионная шина DBus недоступна (" << connection.lastError().message().toStdString() << "), связь с ListChecker отключена" << std::endl;
+    else if (!connection.registerService("chanserv.qdbus") || !connection.registerObject("/chanserv", list_checker_adaptor))
+        c_out << "Chanserv: не удалось зарегистрировать DBus адаптер: " << connection.lastError().message().toStdString() << std::endl;
+    else
+        c_out << "Chanserv: DBus адаптер для связи с приложением ListChecker зарегистрирован" << std::endl;
 
 #endif
 }
@@ -664,6 +671,12 @@ void chanserv_bot::qt_bg_worker(QElapsedTimer* timer)
 
 chanserv_bot::~chanserv_bot()
 {
+    if (m_dbus_thread)
+    {
+        m_dbus_thread->quit();
+        m_dbus_thread->wait();
+    }
+
     h_msDB.close();
 
     /* delete trelloAPI; */
