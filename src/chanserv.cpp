@@ -208,8 +208,8 @@ int chanserv_bot::IInitializeDB()
 void chanserv_bot::initialize_tracking_apis()
 {
     c_out << "Starting APIs: Trello, Jira..." << std::endl;
-    m_trello_api = new trello_api(sett["trello_key"], sett["trello_token"], sett["trello_prefix"]);
-    m_jira_api = new jira_api(sett["jira_token"], sett["jira_base_url"], sett["jira_browse_url"], m_tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
+    m_trello_api = std::make_unique<trello_api>(sett["trello_key"], sett["trello_token"], sett["trello_prefix"]);
+    m_jira_api = std::make_unique<jira_api>(sett["jira_token"], sett["jira_base_url"], sett["jira_browse_url"], m_tg_bot.getApi(), sett["support_TgID"], pgDatabase, sett["script_path_mail_sender"]);
 }
 
 void chanserv_bot::bot_start(QCoreApplication *app)
@@ -344,7 +344,7 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
         card_description += "Категория: " + t_uD->jira_task.category + "\n";
     }
 
-    t_uD->created_card_id = nullptr;
+    t_uD->created_card_id.clear();
     /* Результат лежит в t_uD->createdCardID:    */
 
     /* Экранируем всё, что попадёт в query */
@@ -367,9 +367,8 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
             send_msg_to_support(m_tg_bot.getApi(), sett["support_TgID"], "Ошибка создания карточки " + QString::fromLocal8Bit(e.what()).toStdString() + "\n" + card_description, *t_uD, kb_go_dashboard);
         }
 
-        /* Если карточка в Trello не создалась, created_card_id остаётся nullptr */
-        if (t_uD->created_card_id != nullptr)
-            t_uD->jira_task.id_card = *t_uD->created_card_id;
+        /* Если карточка в Trello не создалась, created_card_id остаётся пустым */
+        t_uD->jira_task.id_card = t_uD->created_card_id;
 
         try
         {
@@ -391,17 +390,13 @@ int chanserv_bot::create_new_issue(Message::Ptr message, user_dispatcher* t_uD)
         }
 
         /* Аттачим все присланные изображения в карточку Trello */
-        if (t_uD->created_card_id != nullptr)
+        if (!t_uD->created_card_id.empty())
         {
             if (!t_uD->jira_task.v_local_file_paths.empty())
                 for (int i = 0; i < t_uD->jira_task.v_local_file_paths.size(); ++i)
-                    auto ret = m_trello_api->add_img_to_card(*t_uD->created_card_id, t_uD->jira_task.v_local_file_paths[i]);
+                    auto ret = m_trello_api->add_img_to_card(t_uD->created_card_id, t_uD->jira_task.v_local_file_paths[i]);
 
-            c_out << "Карточка " << *t_uD->created_card_id << " создана." << std::endl;
-
-            /* Освобождаем память, std::string createdCardID был allocated в ф-ции trelloAPI->createNewCard() */
-            delete t_uD->created_card_id;
-            t_uD->created_card_id = nullptr;
+            c_out << "Карточка " << t_uD->created_card_id << " создана." << std::endl;
         }
 
         /* Уведомление админ.аппарата о появлениии новой задачи */
@@ -681,8 +676,6 @@ chanserv_bot::~chanserv_bot()
     }
 
     h_msDB.close();
-
-    /* delete trelloAPI; */
 }
 
 bool chanserv_bot::is_developer(const long id)

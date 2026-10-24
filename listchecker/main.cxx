@@ -14,8 +14,9 @@ int main(int argc, char *argv[])
 /*  QString configFile = qgetenv("CHANSERV_CONFIG"); */
 
     /* Данный таймер нужен для того, чтобы сообщать разработчику об аптайме и об ошибке связи с БД, но не спамить безостановочно, а сообщать, скажем, раз в 20 минут */
-    QElapsedTimer* up_timer = new QElapsedTimer();
-    up_timer->start();
+    QElapsedTimer up_timer_obj;
+    up_timer_obj.start();
+    QElapsedTimer* up_timer = &up_timer_obj;
 
     qInstallMessageHandler(bg_message_handler); /* Handler, чтобы qDebug() писал свой вывод в файл */
 

@@ -57,8 +57,8 @@ public:
     Bot tg_bot;
 
     client_dbus::Ptr bot_dbus;
-    trello_api*  p_trello;
-    jira_api* p_jira;
+    std::unique_ptr<trello_api> p_trello;
+    std::unique_ptr<jira_api> p_jira;
 
     void check_the_list(QElapsedTimer* timer);
 

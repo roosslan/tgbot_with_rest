@@ -120,7 +120,9 @@ trello_result<jira_card> trello_api::get_card(const std::string &card_id)
         return trello_error::unknown;
     }
 
-    auto json_resp = new std::string;
+    std::string json_resp_buf;   /* буфер ответа curl, освобождается автоматически */
+
+    auto json_resp = &json_resp_buf;
 
     std::string full_url = apiprefix_;
     full_url.append("cards/").append(card_id).append("?key=").append(api_key_).append("&token=").append(user_token_);
@@ -202,15 +204,13 @@ trello_result<jira_card> trello_api::get_card(const std::string &card_id)
 
     curl_easy_cleanup(curl_req);
 
-    if(json_resp)
-        delete json_resp;
-
     return trello_card;
 }
 
 int trello_api::change_card_color(const std::string& card_id, const std::string& color)
 {
-    auto json_body = new std::string;
+    std::string json_body_buf;   /* буфер ответа curl, освобождается автоматически */
+    auto json_body = &json_body_buf;
     c_out << "Updating color of card " + card_id + " to " + color << std::endl;
 
     CURL *curl_req = curl_easy_init();
@@ -265,9 +265,6 @@ int trello_api::change_card_color(const std::string& card_id, const std::string&
     curl_easy_cleanup(curl_req);
 
     colour_out("Color of the card successfully updated");
-
-    if(json_body)
-        delete json_body;
     return 0;
 }
 
@@ -332,9 +329,10 @@ int trello_api::archiving_card(const std::string& card_id)
     return 0;
 }
 
-trello_result<std::string> trello_api::create_new_card(const std::string& list_id, std::string card_name, std::string card_description, std::string** created_card_id)
+trello_result<std::string> trello_api::create_new_card(const std::string& list_id, std::string card_name, std::string card_description, std::string* created_card_id)
 {
-    auto json_resp = new std::string;
+    std::string json_resp_buf;   /* буфер ответа curl, освобождается автоматически */
+    auto json_resp = &json_resp_buf;
     c_out << "Creating new Trello card:" <<  std::endl;
 
     CURL *curl_req = curl_easy_init();
@@ -403,11 +401,7 @@ trello_result<std::string> trello_api::create_new_card(const std::string& list_i
     std::cout << json_resp->c_str() << std::endl;
 
 
-    /* Указатель будет удален после выхода из ф-ции и использования */
-    *created_card_id = new std::string(card_id);
-
-    if(json_resp)
-        delete json_resp;
+    *created_card_id = card_id;
 
     return static_cast<trello_result<std::string>>(card_id);
 }

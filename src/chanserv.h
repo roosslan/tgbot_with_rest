@@ -60,8 +60,8 @@ public:
     /* Поток с циклом событий для DBus адаптера (связь с ListChecker) */
     std::unique_ptr<QThread> m_dbus_thread;
 
-    jira_api* m_jira_api;
-    trello_api* m_trello_api;
+    std::unique_ptr<jira_api> m_jira_api;
+    std::unique_ptr<trello_api> m_trello_api;
 
     /* Блок уникальных данных для каждого юзера */
     user_dispatcher* uD = nullptr;

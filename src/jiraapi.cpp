@@ -33,7 +33,8 @@ size_t jira_api::curl_write_callback(const char* buff_ptr, const size_t sz, cons
 
 int jira_api::create_task(user_dispatcher* ud, const std::string& project_name)
 {
-    auto json_resp = new std::string;
+    std::string json_resp_buf;   /* буфер ответа curl, освобождается автоматически */
+    auto json_resp = &json_resp_buf;
     c_out << "Creating new Jira task:" <<  std::endl;
 
     CURL *curl_req = curl_easy_init();
@@ -119,9 +120,6 @@ int jira_api::create_task(user_dispatcher* ud, const std::string& project_name)
 
     std::cout << "JSONAnswer:" << json_resp->c_str() << std::endl;
 
-    if(json_resp)
-        delete json_resp;
-
     if (status_code > 300){
 
         const QString qErrata = QString::fromUtf8(json_resp->c_str());
@@ -187,7 +185,8 @@ bool jira_api::add_attach(const std::string& file_path, const std::string& issue
 /* JIRA_IN_PROGRESS = 4 */
 int jira_api::change_task_status(const std::string& issue_key, const int new_status)
 {
-    auto json_resp = new std::string;
+    std::string json_resp_buf;   /* буфер ответа curl, освобождается автоматически */
+    auto json_resp = &json_resp_buf;
 
     c_out << "Changing issue' status " <<  std::endl;
 
@@ -247,9 +246,6 @@ int jira_api::change_task_status(const std::string& issue_key, const int new_sta
     }
 
     std::cout << "JSONAnswer:" << json_resp->c_str() << std::endl;
-
-    if(json_resp)
-        delete json_resp;
 
     return 0;
 }
