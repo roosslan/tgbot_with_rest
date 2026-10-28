@@ -16,7 +16,6 @@ WORKDIR /src
 
 # Зависимости и Qt (через aqtinstall) - отдельным слоем, он кэшируется, пока не меняется install-deps.sh
 COPY ci/install-deps.sh ci/install-deps.sh
-COPY lib/manapihttp/manapihttp-v1.0.1ubuntu24.04-dbg.deb lib/manapihttp/
 RUN bash ci/install-deps.sh && rm -rf /var/lib/apt/lists/*
 
 # Сборка chanserv и listchecker, при падении тестов образ не собирается
@@ -30,14 +29,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Библиотеки для запуска. SQL-драйверы Qt (libqsqlpsql, libqsqlodbc) входят в сборку Qt,
 # им нужны только libpq5 и unixodbc
-COPY lib/manapihttp/manapihttp-v1.0.1ubuntu24.04-dbg.deb /tmp/
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl supervisor python3 mc net-tools dbus-daemon \
         libglib2.0-0t64 libzstd1 zlib1g libdbus-1-3 \
         libboost-context1.83.0 libboost-coroutine1.83.0 libboost-system1.83.0 \
-        libcurl4t64 libssl3t64 libpq5 unixodbc odbcinst libicu74 \
-        /tmp/manapihttp-v1.0.1ubuntu24.04-dbg.deb && \
-    rm -rf /var/lib/apt/lists/* /tmp/*.deb
+        libcurl4t64 libssl3t64 libpq5 unixodbc odbcinst libicu74 && \
+    rm -rf /var/lib/apt/lists/*
 
 # Драйвер Microsoft ODBC 18, mssql-tools18 и PowerShell (для sendmail.ps1) ставятся из репозитория Microsoft:
 # https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
@@ -70,6 +67,11 @@ ENV LD_LIBRARY_PATH="/opt/qt/lib" \
     PATH="${PATH}:/opt/mssql-tools18/bin"
 #ENV CHANSERV_CONFIG=/root/chanserv.toml
 #ENV CHANSERV_LOGDIR=/root/logs
+
+# Все библиотеки бинарников должны находиться в образе, иначе сборка образа прерывается
+RUN for bin in /opt/chanserv/bin/chanserv /opt/chanserv/listchecker/bin/listchecker; do \
+        if ldd "$bin" | grep "not found"; then echo "$bin: не найдены библиотеки"; exit 1; fi; \
+    done
 
 EXPOSE 53000 17900 8080
 

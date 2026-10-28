@@ -45,7 +45,6 @@ if (CURL_FOUND)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Test Core Network DBus Sql HttpServer)
-# find_package(manapihttp)
 find_package(Boost 1.83 REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
@@ -82,7 +81,7 @@ add_library(chanserv_core STATIC
 )
 
 # add_subdirectory(lib/QXlsx)
-target_link_libraries(chanserv_core PUBLIC m # manapihttp #QXlsx::QXlsx
+target_link_libraries(chanserv_core PUBLIC m #QXlsx::QXlsx
     TgBot    # Должно идти ДО ssl и crypto
     boost_context
     boost_coroutine # apt install libboost-coroutine-dev libboost-coroutine1.83.0 libboost-coroutine1.83-dev libcurl4-gnutls-dev unixodbc-dev
