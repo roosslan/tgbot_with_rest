@@ -69,9 +69,8 @@ add_executable(listchecker ${SOURCES})
 
 # find_package(cpprestsdk REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Network DBus Sql HttpServer)
-# find_package(manapihttp)
 
-target_link_libraries(listchecker m manapihttp
+target_link_libraries(listchecker m
     TgBot    # Должно идти ДО ssl и crypto
     # Иначе будет "Boost: undefined reference to symbol 'SSL_get_verify_callback@@OPENSSL_3.0.0'
     ssl crypto # cpprestsdk::cpprest cjson

@@ -21,9 +21,6 @@ $SUDO apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev libssl-dev zlib1g-dev unixodbc-dev libicu-dev \
     libdbus-1-3 libglib2.0-0t64 libgl1 libxkbcommon0 libfontconfig1
 
-# Библиотека manapihttp нужна для линковки listchecker
-$SUDO apt-get install -y "$REPO_ROOT/lib/manapihttp/manapihttp-v1.0.1ubuntu24.04-dbg.deb"
-
 if [ ! -d "$QT_ROOT/$QT_VERSION/gcc_64" ]; then
     python3 -m venv /tmp/aqt-venv
     /tmp/aqt-venv/bin/pip install --quiet aqtinstall==3.3.0
